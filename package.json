@@ -1,0 +1,6 @@
+{
+	"dependencies":{
+		"file": "*",
+		"fs-extra": "*"
+	}
+}
