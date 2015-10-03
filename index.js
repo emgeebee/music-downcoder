@@ -6,21 +6,25 @@
 	var file = require('file');
 	var term = require('child_process');
 	var probe = require('node-ffprobe');
+	var art = require('./art');
 
-	var rate = "4";
+	var rate = "0";
 	var numOfCores = 3;
 
-	var startLocation = "/Volumes/Travel/Music/ALAC/";
-	//var startLocation = "/Volumes/Itunes/Music/";
+//	var startLocation = "/Volumes/Travel/Music/ALAC/";
+//	var startLocation = "/Volumes/Music/ALAC/";
+//	var startLocation = "/Volumes/Itunes/Music/";
+	var startLocation = "/Users/mat/Music/ripping library/iTunes Media/Music/";
 
-
-	var outputLocation = "/Volumes/Travel/Music-new/" + rate + "/";
-	//var outputLocation = "/Volumes/Music/" + rate + "/";
-
+//	var outputLocation = "/Volumes/Travel/Music-new/" + rate + "/";
+//	var outputLocation = "/Volumes/Music/" + rate + "/";
+	var outputLocation = "/Volumes/MOVIES/music/" + rate + "/";
+//	var outputLocation = "/Volumes/X1/";
 
 	var commandFiles = "./commands.sh";
 	var commandsFolder = './cmd/';
-	var outputFormat = ".mp3";
+	var outputFormat = "mp3"
+	var outputFormatExtension = "." + outputFormat;
 	var commands = {};
 
 
@@ -30,16 +34,15 @@
 	};
 
 	function checkFiles(dirPath, dirs, files){
-
 		var album = dirPath.replace(startLocation, '');
 		var genre;
 		var outputDir = outputLocation;
 		var path;
 		for (var i = files.length - 1; i >= 0; i--) {
-			path = files[i].replace(startLocation, '').replace('.m4a', outputFormat).replace('.flac', outputFormat);
+			path = files[i].replace(startLocation, '').replace('.m4a', outputFormatExtension).replace('.flac', outputFormatExtension);
 			//console.log(path);
 
-			var regex = new RegExp(outputFormat);
+			var regex = new RegExp(outputFormatExtension);
 			if(!regex.test(path)){
 				continue;
 			}
@@ -64,11 +67,18 @@
 		var tempin = input.replace(/[`]/g, '\`');
 		if(genre === undefined){
 			var meta = term.execSync('/Applications/ffmpeg -y -i "' + tempin + '" -f ffmetadata pipe:1', {"encoding": "utf-8"});
-			genre = meta.match(/genre.*/g)[0].split('=')[1];
+			genre = meta.match(/genre.*/gi)[0].split('=')[1];
+			console.log(meta);
+
+			var fullArtist = meta.match(/album_artist.*/gi) ? meta.match(/album_artist.*/g)[0].split('=')[1] : meta.match(/artist.*/g)[0].split('=')[1];
+			var fullAlbum = meta.match(/album(?!_).*/gi)[0].split('=')[1];
+
+			var outputFolder = outputDir + genre + '/' + album;
+			fse.ensureDir(outputFolder, afterDirectoryCreation.bind(null, fullArtist, fullAlbum, outputFolder));
+		} else {
+			var outputFolder = outputDir + genre + '/' + album;
 		}
 
-		var outputFolder = outputDir + genre + '/' + album;
-		fse.ensureDirSync(outputFolder);
 
 		var output = outputFolder + '/' + path;
 
@@ -85,7 +95,8 @@
 			cmd.push('sed -i".bak" "/^compatible_brands/d" "' + metaFile + '"');
 			cmd.push('sed -i".bak" "/^gapless_playback/d" "' + metaFile + '"');
 			cmd.push('sed -i".bak" "/^encoder/d" "' + metaFile + '"');
-			cmd.push('/Applications/ffmpeg -i "' + input + '"  -i "' + metaFile + '" -map_metadata 1 -c:a libmp3lame -ar 44100 -q:a ' + rate + ' -id3v2_version 3 -f mp3  "' + output + '"');
+			cmd.push('/Applications/ffmpeg -i "' + input + '"  -i "' + metaFile + '" -map_metadata 1 -c:a libmp3lame -ar 44100 -q:a ' + rate + ' -id3v2_version 3 -f ' + outputFormat + '  "' + output + '"');
+			//cmd.push('/Applications/ffmpeg -i "' + input + '"  -i "' + metaFile + '" -map_metadata 1 -c:a libvorbis -ar 44100 -qscale:a ' + rate + ' -f ' + outputFormat + '  "' + output + '"');
 			cmd.push('rm "' + metaFile + '"');
 			cmd.push('rm "' + metaFile + '"');
 			cmd.push('rm "' + metaFile + '.bak"');
@@ -94,6 +105,10 @@
 			return {"genre": genre};
 		}
 	};
+
+	function afterDirectoryCreation(artist, album, path) {
+		art.getArt(artist, album, path);
+	}
 
 	function writeCommands(commands){
 		var alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
