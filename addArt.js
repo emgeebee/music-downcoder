@@ -5,55 +5,66 @@ var file = require('file');
 var term = require('child_process');
 var path = require('path');
 var art = require('./art');
+var metaGetter = require('./getMeta');
+var argv = require('optimist').argv;
 
 function Addart() {
-	this.startLocation = "/Volumes/USB-MUSIC/";
+	this.startLocation = "/Volumes/Music/4/";
 	this.count = 0;
 }
 
 Addart.prototype = {
 	start: function() {
-		file.walkSync(this.startLocation, this.checkFiles.bind(this));
+		file.walkSync(this.startLocation, this.iterateDirs.bind(this));
 	},
 
-
-	checkFiles: function(dirPath, dirs, files){
+	iterateDirs: function(dirPath, dirs, files) {
 		for (var i = dirs.length - 1; i >= 0; i--) {
 			var dir = dirs[i];
 			if (dir[0] === '.') { continue }
 			var albumFolder = dirPath + '/' + dir;
-			var artFile = albumFolder + '/folder.jpg';
-			fs.stat(artFile, this.afterFile.bind(this, albumFolder, artFile));
+			this.checkFiles(albumFolder);
 		};
 	},
 
-	afterFile: function(albumFolder, artFile, err, stat) {
+	checkFiles: function(albumFolder, meta){
+		var artFile = albumFolder + '/folder.jpg';
+		fs.stat(artFile, this.afterFile.bind(this, albumFolder, artFile, meta));
+	},
+
+	afterFile: function(albumFolder, artFile, meta, err, stat) {
 		if (err === null) {
-	        console.log('Album art exists');
 	    } else if (err.code == 'ENOENT') {
-	    	console.log(albumFolder);
-	    	var files = fs.readdir(albumFolder, this.scanAlbumFolder.bind(this, albumFolder, artFile));
+	    	var files = fs.readdir(albumFolder, this.scanAlbumFolder.bind(this, albumFolder, artFile, meta));
 	    }
 	},
 
-	scanAlbumFolder: function(albumFolder, artFile, err, files) {
+	scanAlbumFolder: function(albumFolder, artFile, meta, err, files) {
 		if (err === null) {
 	    	if (files.length > 0 && path.extname(files[0]) === ".mp3" && files[0][0] !== ".") {
-	    		this.getMetaData(albumFolder, artFile, files[0]);
-	    	}
-	    }
+	    		this.getMetaData(albumFolder, artFile, files[0], meta);
+		    } else if (meta) {
+		    	this.getMetaData(albumFolder, artFile, undefined, meta);
+		    }
+		}
 	},
 
-	getMetaData: function(albumFolder, artFile, testFile) {
-		var meta = term.execSync('/Applications/ffmpeg -y -i "' + albumFolder + '/' + testFile + '" -f ffmetadata pipe:1', {"encoding": "utf-8"});
-		var artist = meta.match(/album_artist.*/gi) ? meta.match(/album_artist.*/g)[0].split('=')[1] : meta.match(/artist.*/g)[0].split('=')[1];
-		var album = meta.match(/album(?!_).*/gi)[0].split('=')[1];
+	getMetaData: function(albumFolder, artFile, testFile, meta) {
+
+		if (!meta) {
+			meta = metaGetter.getMeta(albumFolder, testFile);
+		}
+
+		var album = meta.fullAlbum;
+		var artist = meta.fullArtist;
 
 		this.count++;
 
-		setTimeout(art.getArt.bind(art, artist, album, albumFolder), 2000 * this.count);
+		art.getArt.call(art, artist, album, albumFolder);
 	}
 }
 
 module.exports = new Addart();
-module.exports.start();
+if (argv.run === "true") {
+	module.exports.start();	
+}
