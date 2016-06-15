@@ -12,4 +12,4 @@ A simple console based app which looks in 2 folders (src and dest) and generates
 
 ## Future
 
-It would be nice to turn this into an electron app so that folders (and cores, rates) can be selected via a UI
+It would be nice to turn this into an electron app so that folders (and cores, rates) can be selected via a UI: http://electron.atom.io/docs/tutorial/application-distribution/
