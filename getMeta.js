@@ -6,30 +6,27 @@ var fs = require('fs');
 function getMeta() {
 	this.counter = 0;
 	this.usemetaFiles = true;
+
+	this.metaFile = './meta.json';
+	this.metaData = {};
+	try {
+		this.metaData = JSON.parse(fs.readFileSync(this.metaFile));
+	} catch (e) {}
 }
 
 getMeta.prototype = {
 	getMeta: function(path, filename){
-		var metaFile = path + '/meta.json';
-		var metaFileExists = false;
 
-		try {
-			var stats = fs.statSync(metaFile);
-			metaFileExists = true;
-		} catch(e) {}
+		if (this.metaData[path] && this.usemetaFiles) {
 
-		if (metaFileExists && this.usemetaFiles) {
-
-			var metaData = JSON.parse(fs.readFileSync(metaFile));
-			fullArtist = metaData.fullArtist;
-			fullAlbum = metaData.fullAlbum;
-			genre = metaData.genre;
+			fullArtist = this.metaData[path].fullArtist;
+			fullAlbum = this.metaData[path].fullAlbum;
+			genre = this.metaData[path].genre;
 			console.log('read meta for %s: %s', fullArtist, fullAlbum);
 
 		} else {
-			var meta = term.execSync('/Applications/ffmpeg -y -i "' + path + '/' + filename + '" -f ffmetadata pipe:1', {"encoding": "utf-8"});
-
-			var genre = meta.match(/genre.*/gi)[0].split('=')[1];
+			var meta = term.execSync('/Applications/ffmpeg -y -i "' + path + '/' + filename + '" -f ffmetaData pipe:1', {"encoding": "utf-8"});
+            var genre = meta.match(/genre.*/gi)[0].split('=')[1];
 
 			var artistReg = new RegExp(/[\t]*artist=(.*)$/gmi);
 			var albumArtistReg = new RegExp(/[\t]*album_artist=(.*)$/gmi);
@@ -38,8 +35,6 @@ getMeta.prototype = {
 			var fullArtistResults = artistReg.exec(meta);
 			var fullAlbumArtistResults = albumArtistReg.exec(meta);
 			var fullAlbumResults = albumReg.exec(meta);
-
-			console.log(fullAlbumResults);
 
 			var fullArtist = "";
 			var fullAlbum = "";
@@ -51,7 +46,8 @@ getMeta.prototype = {
 
 			}
 
-			var metaData = fs.writeFileSync(metaFile, JSON.stringify({'fullArtist' : fullArtist, 'fullAlbum': fullAlbum, 'genre': genre}));
+			this.metaData[path] = {'fullArtist' : fullArtist, 'fullAlbum': fullAlbum, 'genre': genre};
+			fs.writeFileSync(this.metaFile, JSON.stringify(this.metaData));
 
 		}
 

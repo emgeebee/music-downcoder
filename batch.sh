@@ -14,7 +14,7 @@ do
 		#if [[ "$time" -le 2359 ]];then
 			sh "./queueInProgress/${filename}"
 		    rm "./queueInProgress/${filename}"
-		    sleep 60
+		    sleep 0
 		#else
 		#exit 0
 		#fi

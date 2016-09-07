@@ -9,7 +9,8 @@ var metaGetter = require('./getMeta');
 var argv = require('optimist').argv;
 
 function Addart() {
-	this.startLocation = "/Volumes/Music/4/";
+//	this.startLocation = "/Volumes/Music/4/";
+	this.startLocation = "/Volumes/music/1/";
 	this.count = 0;
 }
 
@@ -61,6 +62,19 @@ Addart.prototype = {
 		this.count++;
 
 		art.getArt.call(art, artist, album, albumFolder);
+	},
+
+	checkArtistFile: function(folder, artist){
+		var artFile = folder + '/folder.jpg';
+		fs.stat(artFile, this.getArtistImage.bind(this, folder, artist, artFile));
+
+	},
+
+	getArtistImage: function(folder, artist, artFile, err, stat) {
+		if (err === null) {
+	    } else if (err.code == 'ENOENT') {
+			art.getArt.call(art, artist, null, folder);
+	    }
 	}
 }
 

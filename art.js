@@ -29,18 +29,24 @@ function art() {
 			'other': []
 		}
 	}
+	this.keys = new Map();
 
 	this.logger;
 }
 
 art.prototype = {
 	getArt: function(artist, album, path) {
+		console.log(artist);
+		if (this.keys.has(path)) {
+			return;
+		}
+		this.keys.set(path, 1);
 		this.queues.api.push({'album': album, 'artist': artist, 'size': 'biggest', 'dest': path});
 		this.counters.inits++;
 		if (!this.running.lookup) {
 			this.checkGetterList.call(this);
 			this.running.lookup = true;
-			this.logger = setInterval(this.logState.bind(this), 1000);
+			this.logger = setInterval(this.logState.bind(this), 4000);
 		}
 	},
 
@@ -64,29 +70,27 @@ art.prototype = {
 		}
 	},
 
-	escapeArgs: function(input) {
-		return input;
-	},
-
 	lookupArt: function(item) {
-		var artist = item.artist ? this.escapeArgs(item.artist) : "";
-		var album = item.album ? this.escapeArgs(item.album) : "";
+		if (!item.artist) {
+			this.checkGetterList.call(this);
+			return;
+		}
 
 		this.counters.api_calls++;
-		getter(artist, album, item.size, this.onLookupSuccess.bind(this, item.dest, artist, album));
+		getter(item.artist, item.album, item.size, this.onLookupSuccess.bind(this, item.dest, item.artist, item.album));
 	},
 
 	onLookupSuccess: function(dest, artist, album, err, src) {
 		if (err) {
-			//console.log('error! %s - %s: %s', artist, album, err);
+			console.log('error! %s - %s: %s', artist, album, err);
 			this.counters.api_errors++;
 			this.lists.api.failed.push(artist + ': ' + album);
 		} else if (src) {
-			//console.log('success! %s - %s: %s', artist, album, src);
+			console.log('success! %s - %s: %s', artist, album, src);
 			this.addToList.call(this, dest, src);
 			this.counters.api_success++;
 		} else {
-			//console.log('OTHER! %s - %s: %s', artist, album, src);
+			console.log('OTHER! %s - %s: %s', artist, album, src);
 			this.counters.api_other++;
 			this.lists.api.other.push(artist + ': ' + album);
 		}
