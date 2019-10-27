@@ -1,172 +1,142 @@
-	"use strict";
+#!/usr/bin/env node
+"use strict";
 
-	var fs = require('fs');
-	var fse = require('fs-extra');
-	var file = require('file');
-	var term = require('child_process');
-	var probe = require('node-ffprobe');
-	var addArt = require('./addArt');
-	var metaGetter = require('./getMeta');
-	var path = require('path');
+var fs = require('fs');
+var fse = require('fs-extra');
+var fileSys = require('file');
+var path = require('path');
 
-	var rate = "0";
-	var numOfCores = 4;
+var addArt = require('./addArt');
+var metaGetter = require('./getMeta');
+const { commandFiles, commandsFolder, config, numOfCores, rate } = require('./constants');
 
-//	var startLocation = "/Volumes/Travel/Music/ALAC/";
-    // var startLocation = "/Volumes/Music/ALAC/";
-    // var startLocation = "/Volumes/music/ALAC/";
-    // var startLocation = "/Volumes/music/Dads\ vinyl/";
-	// var startLocation = "/Volumes/usbshare2/Music/ALAC/";
+var configKey = "alac";
 
-    // var startLocation = "/Volumes/Music/Bootlegs/";
-    var startLocation = "/Volumes/Itunes/Music/";
-    // var startLocation = "/Users/mat/Music/ripping library/iTunes Media/Music/";
-//	var startLocation = "/Users/mat/Music/music library/iTunes Media/Music/";
-    // var startLocation = "/Users/mat/Music/Phile Audio/audio2/";
+const outputFormat = config[configKey].format;
+const outputFormatExtension = "." + outputFormat;
+const outputFormatExtensionRegex = new RegExp('\.' + outputFormat);
+let commands = {};
+let genres = {};
+let outputFiles = {};
 
-//	var outputLocation = "/Volumes/Travel/Music-new/" + rate + "/";
-	// var outputLocation = "/Volumes/usbshare2/Music/" + rate + "/";
-//	var outputLocation = "/Volumes/Dropbox/Car Music/";
-    var outputLocation = "/Volumes/Music/" + rate + "/";
-    // var outputLocation = "/Volumes/music/" + rate + "/";
-//	var outputLocation = "/Volumes/Music/test2/" + rate + "/";
-//	var outputLocation = "/Volumes/MOVIES/music/" + rate + "/";
-//	var outputLocation = "/Volumes/X1/";
-    // var outputLocation = "/Users/mat/Music/" + rate + "/";
-    // var outputLocation = "/Users/mat/Music/Test/" + rate + "/";
+const pathSanitiser = (i) => i.replace(/[`\$\"]/g, '\\$&');
 
+const checkOutputFolders = () => {
+    for (var i = numOfCores - 1; i >= 0; i--) {
+        fse.ensureDir(path.join(commandsFolder, String(i)) ,() => {});
+    }
+}
 
-	var commandFiles = "./commands.sh";
-	var commandsFolder = './cmd/';
-	var outputFormat = "mp3"
-	var outputFormatExtension = "." + outputFormat;
-	var outputFormatExtensionRegex = new RegExp('\.' + outputFormat);
-	var commands = {};
+const getPaths = () => {
+    fileSys.walkSync(config[configKey].start, checkFiles);
+    metaGetter.writeBack();
+    writeCommands(commands);
+}
 
-	function getPaths(){
-		file.walkSync(startLocation, checkFiles);
-		writeCommands(commands);
-	};
+const getOutputPath = (file) => {
+    let path = file;
+    let regex = new RegExp('.m4a');
+    if (!isCopy(file)) {
+        path = file.replace(config[configKey].start, '').replace('.m4a', outputFormatExtension).replace('.flac', outputFormatExtension);
+        regex = new RegExp(outputFormatExtension);
+    }
+    return { path, regex }
+}
 
-	function checkFiles(dirPath, dirs, files){
-		var album = dirPath.replace(startLocation, '');
-		var genre;
-		var outputDir = outputLocation;
-		var path;
-		for (var i = files.length - 1; i >= 0; i--) {
-			if (files[i][0] === '.') { continue; }
-			if (outputFormat === 'cp' || outputFormatExtensionRegex.test(files[i])) {
-				path = files[i];
-			} else {
-				path = files[i].replace(startLocation, '').replace('.m4a', outputFormatExtension).replace('.flac', outputFormatExtension);
-				var regex = new RegExp(outputFormatExtension);
-				if(!regex.test(path)){
-					continue;
-				}
-			}
-			//console.log(path);
+const checkFiles = (dirPath, dirs, files) => {
+    const album = dirPath.replace(config[configKey].start, '');
+    const sanistisedDirPath = dirPath.replace(/[`]/g, '\`');
+    const outputDir = config[configKey].out;
+    files.forEach((file, i) => {
+        if (file[0] === '.') { return; }
+        const { regex, path } = getOutputPath(file);
 
-			var r = buildCommand(dirPath, files[i], path, outputDir, album, genre);
-			genre = r.genre;
-			if (r.command === undefined){
-				continue;
-			}
-			if(commands[album] === undefined){
-				commands[album] = [];
-			}
-			commands[album] = commands[album].concat(r.command);
+        if (!regex.test(path)) { return; } // skipping non-music files
 
-		};
-	};
-
-	function buildCommand(input, filename, path, outputDir, album, genre){
-
-		input = input.replace(/[`]/g, '\`');
-		filename = filename.replace(/[`]/g, '\`');
-
-		if (genre === undefined){
-			var meta = metaGetter.getMeta(input, filename);
-			var genre = meta.genre;
-		}
-        if (!RegExp("\/").test(album)){
-			var meta = metaGetter.getMeta(input, filename);
+        if (!RegExp("\/").test(album)){ // if the album doesnt include artist, build it again
+            var meta = metaGetter.getMeta(input, filename);
             album = meta.fullArtist + '/' + album;
         }
-        var outputFolder = outputDir + genre + '/' + album;
-		fse.ensureDir(outputFolder, afterDirectoryCreation.bind(null, outputFolder, meta));
 
-		var output = outputFolder + '/' + path;
-		var filepath = input + '/' + filename;
+        if (genres[album] === undefined) { // if we dont have the genre, build it
+            var meta = metaGetter.getMeta(sanistisedDirPath, file);
+            genres[album] = meta.genre;
+        }
 
-		if(!fs.existsSync(output)){
-			filepath = filepath.replace(/[`\$\"]/g, '\\$&');
-			output = output.replace(/[`\$\"]/g, '\\$&');
+        let filename = file.replace(/[`]/g, '\`'); // escape ticks
 
-			if (outputFormat === 'cp' || outputFormatExtensionRegex.test(filepath)) {
-				return addCopyCommands(filepath, output, genre);
-			} else {
-				return addEncodingCommands(filepath, output, genre);
-			}
+        const outputFolder = outputDir + genres[album] + '/' + album;
+        const output = pathSanitiser(outputFolder + '/' + path);
+        const filepath = pathSanitiser(sanistisedDirPath + '/' + filename);
 
-		} else {
-			return {"genre": genre};
-		}
-	};
+        if (!outputFiles[album]) { // find the files in the output path so we can see if it already exists
+            try {
+                outputFiles[album] = fs.readdirSync(outputFolder);
+            } catch (e) {
+                outputFiles[album] = [];
+            }
+        }
 
-	function addEncodingCommands(filepath, output, genre) {
-			var cmd = [];
-			var metaFile = output.replace(outputFormat, 'txt');
+        if(outputFiles[album].indexOf(filename) < 0) {
+            // fse.ensureDir(outputFolder, afterDirectoryCreation.bind(null, outputFolder, meta));
+            fse.ensureDir(outputFolder);
 
-			cmd.push('/Applications/ffmpeg -i "' + filepath + '" -f ffmetadata "' + metaFile + '"');
-			cmd.push('sed -i".bak" "/^major_brand/d" "' + metaFile + '"');
-			cmd.push('sed -i".bak" "/^minor_version/d" "' + metaFile + '"');
-			cmd.push('sed -i".bak" "/^compatible_brands/d" "' + metaFile + '"');
-			cmd.push('sed -i".bak" "/^gapless_playback/d" "' + metaFile + '"');
-			cmd.push('sed -i".bak" "/^encoder/d" "' + metaFile + '"');
+            var r = buildCommand(filepath, output);
+            if (commands[album] === undefined){
+                commands[album] = [];
+            }
+            commands[album].push(r.command);
+        }
+    });
+};
 
-			//mp3
-			cmd.push('/Applications/ffmpeg -i "' + filepath + '"  -i "' + metaFile + '" -map_metadata 1 -vn -c:a libmp3lame -ar 44100 -q:a ' + rate + ' -id3v2_version 3 -f ' + outputFormat + '  "' + output + '"');
-			//ogg
-			//cmd.push('/Applications/ffmpeg -i "' + filepath + '"  -i "' + metaFile + '" -map_metadata 1 -c:a libvorbis -ar 44100 -qscale:a ' + rate + ' -f ' + outputFormat + '  "' + output + '"');
-			cmd.push('rm "' + metaFile + '"');
-			cmd.push('rm "' + metaFile + '"');
-			cmd.push('rm "' + metaFile + '.bak"');
-			return {"command":cmd, "genre": genre};
+const isCopy = (path) => {
+    return (outputFormat === 'cp' || outputFormatExtensionRegex.test(path) || new RegExp('mp3').test(path)) ? true : false;
+};
 
-	}
+const buildCommand = (filepath, output) => {
+    return isCopy(filepath) ? addCopyCommands(filepath, output) : addEncodingCommands(filepath, output);
+};
 
-	function addCopyCommands(filepath, output, genre) {
-			var cmd = [];
+const addEncodingCommands = (filepath, output) => {
+    var metaFile = output.replace("."+outputFormat, '.txt');
 
-			//cp
-			cmd.push('cp "' + filepath + '"  "' + output + '"');
+    let cmd = [].push('/Applications/ffmpeg -i "' + filepath + '" -f ffmetadata "' + metaFile + '"');
+    cmd.push('sed -i".bak" "/^major_brand/d" "' + metaFile + '"');
+    cmd.push('sed -i".bak" "/^minor_version/d" "' + metaFile + '"');
+    cmd.push('sed -i".bak" "/^compatible_brands/d" "' + metaFile + '"');
+    cmd.push('sed -i".bak" "/^gapless_playback/d" "' + metaFile + '"');
+    cmd.push('sed -i".bak" "/^encoder/d" "' + metaFile + '"');
 
-			return {"command":cmd, "genre": genre};
+    if (config[configKey].format === "ogg") {
+        cmd.push('/Applications/ffmpeg -i "' + filepath + '"  -i "' + metaFile + '" -map 0:0 -map_metadata 1 -c:a libvorbis -ar 44100 -qscale:a 8 -f ' + outputFormat + '  "' + output + '"');
+    } else {
+        cmd.push('/Applications/ffmpeg -i "' + filepath + '"  -i "' + metaFile + '" -map_metadata 1 -vn -c:a libmp3lame -ar 44100 -q:a ' + rate + ' -id3v2_version 3 -f ' + outputFormat + '  "' + output + '"');
+    }
+    cmd.push('rm "' + metaFile + '"');
+    cmd.push('rm "' + metaFile + '.bak"');
+    return { "command": cmd };
+}
 
-	}
+const addCopyCommands = (filepath, output) => {
+    return { "command": ['cp "' + filepath + '"  "' + output + '"'] };
+}
 
-	function afterDirectoryCreation(albumpath, meta, err) {
-		if (meta) {
-			addArt.checkFiles(albumpath, meta);
-			var artistPath = path.dirname(albumpath);
-			addArt.checkArtistFile(artistPath, meta.fullArtist);
-		}
-	}
+const afterDirectoryCreation = (albumpath, meta, err) => {
+    if (meta && config[configKey].getImages) {
+        // addArt.checkFiles(albumpath, meta);
+        // var artistPath = path.dirname(albumpath);
+        // addArt.checkArtistFile(artistPath, meta.fullArtist);
+    }
+}
 
-	function writeCommands(commands){
-		var i = 0;
+const writeCommands = (commands) => {
+    Object.keys(commands).forEach((albums, i) => {
+        fs.writeFileSync(commandsFolder + i%numOfCores + '/' + albums.replace('/', '_')+'-commands.sh', commands[albums].join('\n'));
+    });
+};
 
-		for (var albums in commands) {
-			var split;
-			if (i === numOfCores) {
-				i = 0;
-			}
-
-			fs.writeFileSync(commandsFolder + i + '/' + albums.replace('/', '_')+'-commands.sh', commands[albums].join('\n'));
-			i++;
-
-		};
-	};
-
-	getPaths();
-
+const start = new Date().getTime();
+checkOutputFolders();
+getPaths();
+console.log(`Time to run: ${(new Date().getTime() - start)/1000}`);

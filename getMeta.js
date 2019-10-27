@@ -2,26 +2,26 @@
 
 var term = require('child_process');
 var fs = require('fs');
+const metaFile = './meta.json';
+let metaData = {};
+try {
+    metaData = JSON.parse(fs.readFileSync(metaFile));
+} catch (e) {}
 
 function getMeta() {
 	this.counter = 0;
 	this.usemetaFiles = true;
 
-	this.metaFile = './meta.json';
-	this.metaData = {};
-	try {
-		this.metaData = JSON.parse(fs.readFileSync(this.metaFile));
-	} catch (e) {}
 }
 
 getMeta.prototype = {
 	getMeta: function(path, filename){
 
-		if (this.metaData[path] && this.usemetaFiles) {
+		if (metaData[path] && this.usemetaFiles) {
 
-			fullArtist = this.metaData[path].fullArtist;
-			fullAlbum = this.metaData[path].fullAlbum;
-			genre = this.metaData[path].genre;
+			fullArtist = metaData[path].fullArtist;
+			fullAlbum = metaData[path].fullAlbum;
+			genre = metaData[path].genre;
 			console.log('read meta for %s: %s', fullArtist, fullAlbum);
 
 		} else {
@@ -46,13 +46,16 @@ getMeta.prototype = {
 
 			}
 
-			this.metaData[path] = {'fullArtist' : fullArtist, 'fullAlbum': fullAlbum, 'genre': genre};
-			fs.writeFileSync(this.metaFile, JSON.stringify(this.metaData));
+			metaData[path] = {'fullArtist' : fullArtist, 'fullAlbum': fullAlbum, 'genre': genre};
 
 		}
 
 		return {'fullArtist': fullArtist, 'fullAlbum': fullAlbum, 'genre': genre};
-	}
+	},
+
+    writeBack: function() {
+        fs.writeFileSync(metaFile, JSON.stringify(metaData));
+    }
 }
 
 module.exports = new getMeta();
