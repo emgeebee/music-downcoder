@@ -13,12 +13,13 @@ exports.config = {
         "start": "/Volumes/Itunes/Music/",
         "out": "/Volumes/Music/cds-ogg/",
         "format": "ogg",
-        // "getImages": false
+        "getImages": false
     },
     "alac": {
         "start": "/Volumes/Itunes/Music/",
         "out": "/Volumes/Music/cds-alac/",
-        "format": "cp"
+        "format": "cp",
+        "getImages": false
     },
     "local": {
         "start": "/Users/mat/Music/Phile Audio/audio2/",

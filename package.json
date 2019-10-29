@@ -1,9 +1,13 @@
 {
-	"dependencies":{
-		"file": "*",
-		"fs-extra": "*",
-        "album-art": "git+ssh://git@github.com:emgeebee/album-art.git",
-        "request": "2.64.0",
-        "optimist": "0.6.1"
-    }
+ "dependencies": {
+  "album-art": "git+ssh://git@github.com:emgeebee/album-art.git",
+  "file": "*",
+  "fs-extra": "*",
+  "minimist": "^1.2.0",
+  "optimist": "0.6.1",
+  "request": "2.64.0"
+ },
+ "devDependencies": {
+  "jslint": "^0.12.1"
+ }
 }

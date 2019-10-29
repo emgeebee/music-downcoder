@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 "use strict";
 
-var fs = require('fs');
-var fse = require('fs-extra');
-var fileSys = require('file');
-var path = require('path');
+const fs = require('fs');
+const fse = require('fs-extra');
+const fileSys = require('file');
+const path = require('path');
+const args = require('minimist')(process.argv.slice(2))
 
-var addArt = require('./addArt');
-var metaGetter = require('./getMeta');
+const addArt = require('./addArt');
+const metaGetter = require('./getMeta');
 const { commandFiles, commandsFolder, config, numOfCores, rate } = require('./constants');
 
-var configKey = "alac";
+const configKey = args['key'] || "alac";
 
 const outputFormat = config[configKey].format;
 const outputFormatExtension = "." + outputFormat;
@@ -99,7 +100,7 @@ const buildCommand = (filepath, output) => {
 };
 
 const addEncodingCommands = (filepath, output) => {
-    var metaFile = output.replace("."+outputFormat, '.txt');
+    const metaFile = output.replace("."+outputFormat, '.txt');
 
     let cmd = [].push('/Applications/ffmpeg -i "' + filepath + '" -f ffmetadata "' + metaFile + '"');
     cmd.push('sed -i".bak" "/^major_brand/d" "' + metaFile + '"');
@@ -124,9 +125,9 @@ const addCopyCommands = (filepath, output) => {
 
 const afterDirectoryCreation = (albumpath, meta, err) => {
     if (meta && config[configKey].getImages) {
-        // addArt.checkFiles(albumpath, meta);
-        // var artistPath = path.dirname(albumpath);
-        // addArt.checkArtistFile(artistPath, meta.fullArtist);
+        addArt.checkFiles(albumpath, meta);
+        const artistPath = path.dirname(albumpath);
+        addArt.checkArtistFile(artistPath, meta.fullArtist);
     }
 }
 
