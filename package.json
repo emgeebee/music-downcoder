@@ -8,7 +8,21 @@
   "request": "2.64.0"
  },
  "devDependencies": {
-  "jslint": "^0.12.1"
+  "eslint": "^6.6.0",
+  "eslint-config-standard": "^14.1.0",
+  "eslint-plugin-import": "^2.18.2",
+  "eslint-plugin-node": "^10.0.0",
+  "eslint-plugin-promise": "^4.2.1",
+  "eslint-plugin-standard": "^4.0.1"
+ },
+ "scripts": {
+  "lint": "eslint **/*.js --fix",
+  "start": "node index.js",
+  "start:alac": "node index.js --key alac",
+  "start:mp3": "node index.js --key main",
+  "start:ogg": "node index.js --key ogg",
+  "list": "find ./cmd/**/*.sh -type f | sort -nr",
+  "convert": "./batch.sh"
  },
  "version": "0.0.1"
 }
