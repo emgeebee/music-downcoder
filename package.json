@@ -3,7 +3,7 @@
   "album-art": "git+ssh://git@github.com:emgeebee/album-art.git",
   "file": "*",
   "fs-extra": "*",
-  "minimist": "^1.2.0",
+  "minimist": "^1.2.3",
   "optimist": "0.6.1",
   "request": "2.64.0"
  },
