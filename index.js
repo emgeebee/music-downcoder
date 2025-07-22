@@ -4,8 +4,6 @@
 import fs from "fs";
 import fse from "fs-extra";
 import path from "path";
-import minimist from "minimist";
-const args = minimist(process.argv.slice(2));
 
 import { input, select } from "@inquirer/prompts";
 
@@ -45,13 +43,10 @@ const artistFilter = (artist) => {
   return true;
 };
 
-console.log(args);
 console.log("================");
 console.log("================");
-console.log(
-  `Using key "${configKey}", other options are "main", "alac", "ogg"`
-);
-console.log(`Use "--key {key}" to select`);
+console.log(`Using key "${configKey}" with filter ${filter}`);
+console.log(JSON.stringify(config[configKey], undefined, 2));
 console.log("================");
 console.log("================");
 
@@ -62,6 +57,8 @@ const commands = {};
 const genres = {};
 const outputFiles = {};
 
+const listOfFoldersToCreate = [];
+
 const pathSanitiser = (i) => i.replace(/[`\$\"]/g, "\\$&");
 
 const checkOutputFolders = () => {
@@ -70,7 +67,7 @@ const checkOutputFolders = () => {
   }
 };
 
-const walkSync = function (start, callback, fileFilter) {
+const walkSync = async function (start, callback, fileFilter) {
   var stat = fs.statSync(start);
 
   if (stat.isDirectory()) {
@@ -91,20 +88,20 @@ const walkSync = function (start, callback, fileFilter) {
       { names: [], dirs: [] }
     );
 
-    callback(start, coll.dirs, coll.names);
+    await callback(start, coll.dirs, coll.names);
 
-    coll.dirs.forEach(function (d) {
+    for (const d of coll.dirs) {
       var abspath = path.join(start, d);
-      walkSync(abspath, callback, () => true);
-    });
+      await walkSync(abspath, callback, () => true);
+    }
   } else {
     throw new Error("path: " + start + " is not a directory");
   }
 };
 
-const getPaths = () => {
+const getPaths = async () => {
   console.log(`starting to walk ${config[configKey].start}`);
-  walkSync(config[configKey].start, checkFiles, artistFilter);
+  await walkSync(config[configKey].start, checkFiles, artistFilter);
   metaGetter.writeBack();
   writeCommands(commands);
 };
@@ -124,13 +121,13 @@ const getOutputPath = (file) => {
   return { path, regex };
 };
 
-const checkFiles = (dirPath, dirs, files) => {
+const checkFiles = async (dirPath, dirs, files) => {
   let meta;
   let album = dirPath.replace(config[configKey].start, "");
 
   const sanistisedDirPath = dirPath.replace(/[`]/g, "`");
   const outputDir = config[configKey].out;
-  files.forEach((file, i) => {
+  for (const file of files) {
     if (file[0] === ".") {
       return;
     }
@@ -144,13 +141,13 @@ const checkFiles = (dirPath, dirs, files) => {
 
     if (!RegExp("/").test(album)) {
       // if the album doesnt include artist, build it again
-      meta = metaGetter.getMeta(file, filename);
+      meta = await metaGetter.getMeta(file, filename);
       album = meta.fullArtist + "/" + album;
     }
 
     if (genres[album] === undefined) {
       // if we dont have the genre, build it
-      meta = metaGetter.getMeta(sanistisedDirPath, file);
+      meta = await metaGetter.getMeta(sanistisedDirPath, file);
       genres[album] = meta.genre;
     }
 
@@ -163,21 +160,19 @@ const checkFiles = (dirPath, dirs, files) => {
       try {
         outputFiles[album] = fs.readdirSync(outputFolder);
       } catch (e) {
+        listOfFoldersToCreate.push(outputFolder);
         outputFiles[album] = [];
       }
     }
 
     if (outputFiles[album].indexOf(path) < 0) {
-      // fse.ensureDir(outputFolder, afterDirectoryCreation.bind(null, outputFolder, meta));
-      fse.ensureDir(outputFolder);
-
       var r = buildCommand(filepath, output);
       if (commands[album] === undefined) {
         commands[album] = [];
       }
       commands[album].push(...r.command);
     }
-  });
+  }
 };
 
 const isCopy = (path) => {
@@ -269,5 +264,27 @@ const writeCommands = (commands) => {
 
 const start = new Date().getTime();
 checkOutputFolders();
-getPaths();
+await getPaths();
+
+// confirm with user the directories to make
+for (const outputFolder of listOfFoldersToCreate) {
+  const confirmation = await select({
+    message: `Create folder: ${outputFolder}`,
+    choices: [
+      {
+        value: true,
+        name: "Yes",
+      },
+      {
+        value: false,
+        name: "No",
+      },
+    ],
+  });
+  if (confirmation) {
+    // fse.ensureDir(outputFolder, afterDirectoryCreation.bind(null, outputFolder, meta));
+    fse.ensureDir(outputFolder);
+  }
+}
+
 console.log(`Time to run: ${(new Date().getTime() - start) / 1000}s`);
