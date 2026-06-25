@@ -7,96 +7,391 @@
     <style>
       :root {
         color-scheme: light dark;
-        font-family: system-ui, sans-serif;
-        line-height: 1.4;
+        --accent: #6d5ef8;
+        --accent-hover: #5b4de6;
+        --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+        --surface: color-mix(in srgb, Canvas 92%, var(--accent) 8%);
+        --surface-raised: color-mix(in srgb, Canvas 88%, var(--accent) 12%);
+        --border: color-mix(in srgb, CanvasText 14%, transparent);
+        --border-strong: color-mix(in srgb, CanvasText 22%, transparent);
+        --text-muted: color-mix(in srgb, CanvasText 55%, transparent);
+        --danger: #e5484d;
+        --danger-soft: color-mix(in srgb, var(--danger) 14%, transparent);
+        --radius: 12px;
+        --radius-sm: 8px;
+        --shadow: 0 1px 2px #0001, 0 8px 24px #0000000f;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        line-height: 1.45;
+      }
+      * {
+        box-sizing: border-box;
       }
       body {
-        margin: 0 auto;
-        max-width: 900px;
-        padding: 1.5rem;
+        margin: 0;
       }
-      h1, h2 {
-        margin-top: 0;
+      .app-layout {
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
       }
-      fieldset {
-        border: 1px solid #8884;
-        border-radius: 8px;
-        margin-bottom: 1rem;
-        padding: 1rem;
+      .main-column {
+        background:
+          radial-gradient(ellipse 80% 50% at 0% 0%, var(--accent-soft), transparent 55%),
+          Canvas;
+        flex: 1;
+        min-width: 0;
+        overflow-y: auto;
+        padding: 1.75rem 2rem 2.5rem;
       }
-      label {
+      .page-header {
+        margin-bottom: 1.75rem;
+      }
+      .page-header h1 {
+        font-size: 1.85rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.35rem;
+      }
+      .tagline {
+        color: var(--text-muted);
+        margin: 0;
+        max-width: 36rem;
+      }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        margin-bottom: 1.25rem;
+        padding: 1.25rem 1.35rem 1.35rem;
+      }
+      #scripts-section {
+        margin-top: 1.75rem;
+      }
+      .panel-header {
+        align-items: center;
+        display: flex;
+        gap: 0.65rem;
+        margin-bottom: 1.1rem;
+      }
+      .panel-header h2 {
+        font-size: 1.1rem;
+        font-weight: 650;
+        margin: 0;
+      }
+      .step-badge {
+        align-items: center;
+        background: linear-gradient(135deg, var(--accent), #8b7cf8);
+        border-radius: 999px;
+        color: #fff;
+        display: inline-flex;
+        flex-shrink: 0;
+        font-size: 0.78rem;
+        font-weight: 700;
+        height: 1.65rem;
+        justify-content: center;
+        width: 1.65rem;
+      }
+      .form-group {
+        margin-bottom: 1.1rem;
+      }
+      .form-group:last-of-type {
+        margin-bottom: 0;
+      }
+      .form-label {
+        color: var(--text-muted);
+        font-size: 0.78rem;
+        font-weight: 650;
+        letter-spacing: 0.04em;
+        margin: 0 0 0.55rem;
+        text-transform: uppercase;
+      }
+      .option-grid {
+        display: grid;
+        gap: 0.55rem;
+      }
+      .option-card {
+        align-items: flex-start;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        display: flex;
+        gap: 0.65rem;
+        margin: 0;
+        padding: 0.7rem 0.8rem;
+        transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+      }
+      .option-card:hover {
+        border-color: var(--border-strong);
+        box-shadow: 0 2px 8px #0000000a;
+      }
+      .option-card:has(input:checked) {
+        background: var(--accent-soft);
+        border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+      }
+      .option-card input {
+        accent-color: var(--accent);
+        flex-shrink: 0;
+        margin-top: 0.2rem;
+      }
+      .option-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        min-width: 0;
+      }
+      .option-title {
+        font-weight: 600;
+        line-height: 1.3;
+      }
+      .option-meta {
+        color: var(--text-muted);
+        font-size: 0.82rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .filter-field {
+        margin-top: 1.1rem;
+      }
+      .filter-field > span {
+        color: var(--text-muted);
         display: block;
-        margin: 0.35rem 0;
+        font-size: 0.78rem;
+        font-weight: 650;
+        letter-spacing: 0.04em;
+        margin-bottom: 0.45rem;
+        text-transform: uppercase;
+      }
+      .filter-wrap input {
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 0.55rem 0.7rem;
+        transition: border-color 0.15s, box-shadow 0.15s;
+        width: 100%;
+      }
+      .filter-wrap input:focus {
+        border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+        box-shadow: 0 0 0 3px var(--accent-soft);
+        outline: none;
+      }
+      .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        margin-top: 1.15rem;
       }
       button {
-        margin-right: 0.5rem;
-        margin-top: 0.5rem;
-        padding: 0.5rem 0.9rem;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font: inherit;
+        font-weight: 600;
+        padding: 0.55rem 1rem;
+        transition: background 0.15s, border-color 0.15s, transform 0.1s, opacity 0.15s;
       }
-      pre {
-        background: #0001;
-        border-radius: 8px;
-        min-height: 8rem;
-        overflow: auto;
+      button:active:not(:disabled) {
+        transform: translateY(1px);
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, var(--accent), #7c6df7);
+        color: #fff;
+      }
+      .btn-primary:hover:not(:disabled) {
+        background: linear-gradient(135deg, var(--accent-hover), #6d5ef8);
+      }
+      .btn-secondary {
+        background: var(--surface-raised);
+        border-color: var(--border);
+        color: CanvasText;
+      }
+      .btn-secondary:hover:not(:disabled) {
+        border-color: var(--border-strong);
+      }
+      .btn-danger {
+        background: var(--danger-soft);
+        border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+        color: var(--danger);
+      }
+      .btn-danger:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--danger) 22%, transparent);
+      }
+      .btn-sm {
+        font-size: 0.88rem;
+        padding: 0.35rem 0.75rem;
+      }
+      .log-panel {
+        background: color-mix(in srgb, Canvas 96%, CanvasText 4%);
+        border-left: 1px solid var(--border);
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+        height: 100vh;
+        padding: 1.5rem 1.25rem;
+        width: min(28rem, 42vw);
+      }
+      .log-panel h2 {
+        flex-shrink: 0;
+        font-size: 1rem;
+        margin: 0 0 0.75rem;
+      }
+      #log {
+        background: #00000014;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        flex: 1;
+        font-family: ui-monospace, "Cascadia Code", "SF Mono", monospace;
+        font-size: 0.82rem;
+        margin: 0;
+        min-height: 0;
+        overflow-y: auto;
         padding: 1rem;
         white-space: pre-wrap;
+      }
+      @media (max-width: 768px) {
+        .app-layout {
+          flex-direction: column;
+          height: auto;
+          min-height: 100vh;
+          overflow: visible;
+        }
+        .main-column {
+          overflow: visible;
+          padding: 1.25rem;
+        }
+        .log-panel {
+          border-left: none;
+          border-top: 1px solid var(--border);
+          height: 50vh;
+          width: auto;
+        }
       }
       .hidden {
         display: none;
       }
+      .scripts-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        margin-bottom: 0.25rem;
+      }
+      .empty-state {
+        color: var(--text-muted);
+        font-size: 0.92rem;
+        padding: 0.5rem 0;
+      }
       .script-row {
         align-items: center;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
         display: flex;
         gap: 0.75rem;
         justify-content: space-between;
-        margin: 0.4rem 0;
+        padding: 0.55rem 0.65rem 0.55rem 0.8rem;
       }
       .script-row code {
         flex: 1;
+        font-family: ui-monospace, "Cascadia Code", "SF Mono", monospace;
+        font-size: 0.84rem;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
       .app-version {
-        color: #888;
-        font-size: 0.9rem;
-        font-weight: normal;
+        color: var(--text-muted);
+        font-size: 0.82rem;
+        font-weight: 500;
+      }
+      .filter-wrap {
+        position: relative;
+      }
+      #filter-dropdown {
+        background: Canvas;
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-sm);
+        box-shadow: var(--shadow);
+        list-style: none;
+        margin: 0.25rem 0 0;
+        max-height: 12rem;
+        overflow: auto;
+        padding: 0.25rem 0;
+        position: absolute;
+        width: 100%;
+        z-index: 10;
+      }
+      #filter-dropdown li {
+        cursor: pointer;
+        padding: 0.4rem 0.7rem;
+      }
+      #filter-dropdown li:hover,
+      #filter-dropdown li:focus {
+        background: var(--accent-soft);
       }
     </style>
   </head>
   <body>
-    <h1>Music Downcoder <span id="app-version" class="app-version"></span></h1>
-    <p>Generate ffmpeg conversion scripts, then run them from the browser.</p>
+    <div class="app-layout">
+      <main class="main-column">
+        <header class="page-header">
+          <h1>Music Downcoder <span id="app-version" class="app-version"></span></h1>
+          <p class="tagline">Generate ffmpeg conversion scripts, then run them from the browser.</p>
+        </header>
 
-    <section id="setup-section">
-      <h2>1. Scan library</h2>
-      <form id="run-form">
-        <fieldset>
-          <legend>Source folder</legend>
-          <div id="start-folders"></div>
-        </fieldset>
-        <fieldset>
-          <legend>Encoders</legend>
-          <div id="encoders"></div>
-        </fieldset>
-        <label>
-          Artist filter (prefix)
-          <input id="filter" type="text" value="" />
-        </label>
-        <button type="submit" id="run-btn">Generate scripts</button>
-      </form>
-    </section>
+        <section class="panel" id="setup-section">
+          <div class="panel-header">
+            <span class="step-badge">1</span>
+            <h2>Scan library</h2>
+          </div>
+          <form id="run-form">
+            <div class="form-group">
+              <h3 class="form-label">Source folder</h3>
+              <div class="option-grid" id="start-folders"></div>
+            </div>
+            <div class="form-group">
+              <h3 class="form-label">Encoders</h3>
+              <div class="option-grid" id="encoders"></div>
+            </div>
+            <label class="filter-field">
+              <span>Artist filter (prefix)</span>
+              <div class="filter-wrap">
+                <input id="filter" type="text" value="" autocomplete="off" placeholder="e.g. Keri Hilson" />
+                <ul id="filter-dropdown" class="hidden"></ul>
+              </div>
+            </label>
+            <div class="btn-row">
+              <button type="submit" class="btn-primary" id="run-btn">Generate scripts</button>
+            </div>
+          </form>
+        </section>
 
-    <section id="scripts-section" class="hidden">
-      <h2>2. Run scripts</h2>
-      <div id="scripts-list"></div>
-      <button type="button" id="run-all-btn">Run all scripts</button>
-      <button type="button" id="refresh-btn">Refresh list</button>
-      <button type="button" id="clear-btn">Clear scripts</button>
-    </section>
+        <section class="panel hidden" id="scripts-section">
+          <div class="panel-header">
+            <span class="step-badge">2</span>
+            <h2>Run scripts</h2>
+          </div>
+          <div class="scripts-list" id="scripts-list"></div>
+          <div class="btn-row">
+            <button type="button" class="btn-primary" id="run-all-btn">Run all scripts</button>
+            <button type="button" class="btn-secondary" id="refresh-btn">Refresh list</button>
+            <button type="button" class="btn-danger" id="clear-btn">Clear scripts</button>
+          </div>
+        </section>
+      </main>
 
-    <h2>Output</h2>
-    <pre id="log"></pre>
+      <aside class="log-panel">
+        <h2>Output</h2>
+        <pre id="log"></pre>
+      </aside>
+    </div>
 
     <script>
       const logEl = document.getElementById("log");
@@ -104,6 +399,69 @@
       const scriptsList = document.getElementById("scripts-list");
       const startFoldersEl = document.getElementById("start-folders");
       const encodersEl = document.getElementById("encoders");
+      const filterInput = document.getElementById("filter");
+      const filterDropdown = document.getElementById("filter-dropdown");
+
+      const FILTER_HISTORY_KEY = "music_downcoder_filter_history";
+      const MAX_FILTER_HISTORY = 15;
+
+      const getFilterHistory = () => {
+        try {
+          const raw = localStorage.getItem(FILTER_HISTORY_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch {
+          return [];
+        }
+      };
+
+      const saveFilterValue = (value) => {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return;
+        }
+        const history = getFilterHistory().filter((entry) => entry !== trimmed);
+        history.unshift(trimmed);
+        localStorage.setItem(
+          FILTER_HISTORY_KEY,
+          JSON.stringify(history.slice(0, MAX_FILTER_HISTORY))
+        );
+      };
+
+      const hideFilterDropdown = () => {
+        filterDropdown.classList.add("hidden");
+        filterDropdown.innerHTML = "";
+      };
+
+      const renderFilterDropdown = () => {
+        const query = filterInput.value.trim().toLowerCase();
+        const matches = getFilterHistory().filter(
+          (entry) => !query || entry.toLowerCase().startsWith(query)
+        );
+
+        filterDropdown.innerHTML = "";
+        if (!matches.length) {
+          hideFilterDropdown();
+          return;
+        }
+
+        for (const entry of matches) {
+          const item = document.createElement("li");
+          item.textContent = entry;
+          item.addEventListener("mousedown", (event) => {
+            event.preventDefault();
+            filterInput.value = entry;
+            hideFilterDropdown();
+          });
+          filterDropdown.append(item);
+        }
+        filterDropdown.classList.remove("hidden");
+      };
+
+      filterInput.addEventListener("focus", renderFilterDropdown);
+      filterInput.addEventListener("input", renderFilterDropdown);
+      filterInput.addEventListener("blur", () => {
+        setTimeout(hideFilterDropdown, 150);
+      });
 
       const appendLog = (text) => {
         logEl.textContent += text + "\n";
@@ -156,7 +514,10 @@
       const renderScripts = (scripts) => {
         scriptsList.innerHTML = "";
         if (!scripts.length) {
-          scriptsList.textContent = "No scripts found in cmd folder.";
+          const empty = document.createElement("p");
+          empty.className = "empty-state";
+          empty.textContent = "No scripts found in cmd folder.";
+          scriptsList.append(empty);
           return;
         }
         for (const script of scripts) {
@@ -167,6 +528,7 @@
           code.title = script.name;
           const btn = document.createElement("button");
           btn.type = "button";
+          btn.className = "btn-primary btn-sm";
           btn.textContent = "Run";
           btn.addEventListener("click", async () => {
             setBusy(true);
@@ -181,7 +543,7 @@
             if (data.error) {
               appendLog(`Error: ${data.error}`);
             } else if (data.output) {
-              appendLog(data.output);
+              appendLog(data.output.trim());
             }
             if (data.scripts) {
               renderScripts(data.scripts);
@@ -209,14 +571,19 @@
         data.startFolders.forEach((folder, index) => {
           const id = `start-${index}`;
           const label = document.createElement("label");
-          label.innerHTML = `<input type="radio" name="startFolder" id="${id}" value="${folder.path}" ${index === 0 ? "checked" : ""} /> ${folder.name} <small>(${folder.path})</small>`;
+          label.className = "option-card";
+          label.htmlFor = id;
+          label.innerHTML = `<input type="radio" name="startFolder" id="${id}" value="${folder.path}" ${index === 0 ? "checked" : ""} /><span class="option-body"><span class="option-title">${folder.name}</span><span class="option-meta">${folder.path}</span></span>`;
           startFoldersEl.append(label);
         });
 
         data.encoders.forEach((encoder, index) => {
           const id = `encoder-${index}`;
           const label = document.createElement("label");
-          label.innerHTML = `<input type="checkbox" name="encoder" id="${id}" value="${encoder.id}" ${encoder.default ? "checked" : ""} /> ${encoder.label}${encoder.description ? ` — ${encoder.description}` : ""}`;
+          label.className = "option-card";
+          label.htmlFor = id;
+          const description = encoder.description ? `<span class="option-meta">${encoder.description}</span>` : "";
+          label.innerHTML = `<input type="checkbox" name="encoder" id="${id}" value="${encoder.id}" ${encoder.default ? "checked" : ""} /><span class="option-body"><span class="option-title">${encoder.label}</span>${description}</span>`;
           encodersEl.append(label);
         });
 
@@ -229,12 +596,15 @@
         event.preventDefault();
         const startFolder = document.querySelector('input[name="startFolder"]:checked')?.value;
         const encoderIds = [...document.querySelectorAll('input[name="encoder"]:checked')].map((el) => el.value);
-        const filter = document.getElementById("filter").value;
+        const filter = filterInput.value;
 
         if (!startFolder || !encoderIds.length) {
           appendLog("Select a source folder and at least one encoder.");
           return;
         }
+
+        saveFilterValue(filter);
+        hideFilterDropdown();
 
         setBusy(true);
         appendLog("Scanning library and generating scripts...");
@@ -272,7 +642,7 @@
         if (data.error) {
           appendLog(`Error: ${data.error}`);
         } else if (data.output) {
-          appendLog(data.output);
+          appendLog(data.output.trim());
         }
         if (data.scripts) {
           renderScripts(data.scripts);

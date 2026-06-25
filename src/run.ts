@@ -14,7 +14,7 @@ import {
   prepareCommandFolders,
   processEncoder,
 } from "./processEncoder.js";
-import { normalizeDir, normalizeTerminalOutput } from "./paths.js";
+import { normalizeDir } from "./paths.js";
 import { captureConsole, clearJobLogs, appendJobLog } from "./jobLog.js";
 import { clearJobProgress, setJobProgress } from "./progress.js";
 import { createAutoPrompts, createCliPrompts, type Prompts } from "./prompts.js";
@@ -127,21 +127,9 @@ export const executeScript = (
     const child = spawn("bash", [queuePath], {
       cwd: config.workDir,
       env: process.env,
+      stdio: ["ignore", "ignore", "ignore"],
     });
 
-    let output = "";
-    const logStream = (chunk: Buffer) => {
-      const text = chunk.toString();
-      output += text;
-      for (const line of text.split("\n")) {
-        const trimmed = line.trim();
-        if (trimmed) {
-          appendJobLog(trimmed);
-        }
-      }
-    };
-    child.stdout.on("data", logStream);
-    child.stderr.on("data", logStream);
     child.on("error", (error) => {
       restoreConsole();
       try {
@@ -158,7 +146,14 @@ export const executeScript = (
       } catch {
         // ignore cleanup errors
       }
-      resolve({ code: code ?? 1, output: normalizeTerminalOutput(output) });
+      const exitCode = code ?? 1;
+      const label = filename.replace(/-commands\.sh$/, "");
+      const status =
+        exitCode === 0
+          ? `✓ ${label} completed`
+          : `✗ ${label} failed (exit ${exitCode})`;
+      appendJobLog(status);
+      resolve({ code: exitCode, output: status });
     });
   });
 };
@@ -170,7 +165,7 @@ export const executeAllScripts = async (
   let combined = "";
   for (const script of scripts) {
     const result = await executeScript(script, config);
-    combined += result.output;
+    combined += (combined ? "\n" : "") + result.output;
     if (result.code !== 0) {
       return { code: result.code, output: combined };
     }
