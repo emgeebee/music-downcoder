@@ -1,0 +1,41 @@
+{
+  "ffmpeg": "/usr/bin/ffmpeg",
+  "rate": "0",
+  "numOfCores": 4,
+  "commandsFolder": "/data/cmd",
+  "queueFolder": "/data/queueInProgress",
+  "metaFile": "/data/config/meta.json",
+  "autoConfirm": true,
+  "startFolders": [
+    {
+      "name": "Music library",
+      "path": "/data/music"
+    }
+  ],
+  "encoders": [
+    {
+      "id": "alac",
+      "label": "ALAC",
+      "description": "Copies the files directly (hopefully it's ALAC)",
+      "default": true,
+      "out": "/data/cds-alac",
+      "format": "cp",
+      "getImages": false
+    },
+    {
+      "id": "main",
+      "label": "mp3",
+      "default": true,
+      "out": "/data/cds-mp3",
+      "format": "mp3"
+    },
+    {
+      "id": "ogg",
+      "label": "ogg",
+      "default": false,
+      "out": "/data/cds-ogg",
+      "format": "ogg",
+      "getImages": false
+    }
+  ]
+}

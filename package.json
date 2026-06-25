@@ -1,30 +1,43 @@
 {
+  "name": "@emgeebee/music_downcoder",
+  "version": "1.0.0",
+  "description": "Scan music libraries and generate ffmpeg conversion scripts with a CLI or web UI",
+  "type": "module",
+  "bin": {
+    "music_downcoder": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "batch.sh"
+  ],
+  "scripts": {
+    "build": "tsc && mkdir -p dist/web && cp src/web/index.html dist/web/index.html && npm run type-check",
+    "prepublishOnly": "npm run build",
+    "start": "tsx src/index.ts",
+    "serve": "tsx src/index.ts serve -c docker/conf.local.json -H 127.0.0.1 -p 3798",
+    "list": "find ./cmd/**/*.sh -type f 2>/dev/null | sort -nr",
+    "convert": "./batch.sh",
+    "type-check": "tsc --noEmit"
+  },
   "dependencies": {
     "@inquirer/prompts": "^7.6.0",
-    "album-art": "git+ssh://git@github.com:emgeebee/album-art.git",
-    "file": "*",
     "fs-extra": "*",
-    "minimist": "^1.2.0",
-    "optimist": "0.6.1",
-    "request": "2.64.0"
+    "minimist": "^1.2.0"
   },
   "devDependencies": {
-    "eslint": "^6.6.0",
-    "eslint-config-standard": "^14.1.0",
-    "eslint-plugin-import": "^2.18.2",
-    "eslint-plugin-node": "^10.0.0",
-    "eslint-plugin-promise": "^4.2.1",
-    "eslint-plugin-standard": "^4.0.1"
+    "@types/fs-extra": "^11.0.4",
+    "@types/minimist": "^1.2.5",
+    "@types/node": "^20.11.17",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3"
   },
-  "scripts": {
-    "lint": "eslint **/*.js --fix",
-    "start": "node index.js",
-    "start:alac": "node index.js --key alac",
-    "start:mp3": "node index.js --key main",
-    "start:ogg": "node index.js --key ogg",
-    "list": "find ./cmd/**/*.sh -type f | sort -nr",
-    "convert": "./batch.sh"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/emgeebee/music-downcoder.git"
   },
-  "version": "0.0.1",
-  "type": "module"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }

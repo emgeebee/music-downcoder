@@ -4,7 +4,7 @@ IFS=$'\n'
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 printf "%s\n" ${DIR}
 cd ${DIR}
-for file in `find ./cmd/${1} -name "*.sh"`
+for file in $(find ./cmd -mindepth 2 -name "*.sh" | sort)
 do
 	if [ -a ${file} ]; then
 		filename=$(basename "$file")

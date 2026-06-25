@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Music Downcoder</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+        line-height: 1.4;
+      }
+      body {
+        margin: 0 auto;
+        max-width: 900px;
+        padding: 1.5rem;
+      }
+      h1, h2 {
+        margin-top: 0;
+      }
+      fieldset {
+        border: 1px solid #8884;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        padding: 1rem;
+      }
+      label {
+        display: block;
+        margin: 0.35rem 0;
+      }
+      button {
+        margin-right: 0.5rem;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0.9rem;
+      }
+      pre {
+        background: #0001;
+        border-radius: 8px;
+        min-height: 8rem;
+        overflow: auto;
+        padding: 1rem;
+        white-space: pre-wrap;
+      }
+      .hidden {
+        display: none;
+      }
+      .script-row {
+        align-items: center;
+        display: flex;
+        gap: 0.75rem;
+        justify-content: space-between;
+        margin: 0.4rem 0;
+      }
+      .script-row code {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Music Downcoder</h1>
+    <p>Generate ffmpeg conversion scripts, then run them from the browser.</p>
+
+    <section id="setup-section">
+      <h2>1. Scan library</h2>
+      <form id="run-form">
+        <fieldset>
+          <legend>Source folder</legend>
+          <div id="start-folders"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Encoders</legend>
+          <div id="encoders"></div>
+        </fieldset>
+        <label>
+          Artist filter (prefix)
+          <input id="filter" type="text" value="" />
+        </label>
+        <button type="submit" id="run-btn">Generate scripts</button>
+      </form>
+    </section>
+
+    <section id="scripts-section" class="hidden">
+      <h2>2. Run scripts</h2>
+      <div id="scripts-list"></div>
+      <button type="button" id="run-all-btn">Run all scripts</button>
+      <button type="button" id="refresh-btn">Refresh list</button>
+      <button type="button" id="clear-btn">Clear scripts</button>
+    </section>
+
+    <h2>Output</h2>
+    <pre id="log"></pre>
+
+    <script>
+      const logEl = document.getElementById("log");
+      const scriptsSection = document.getElementById("scripts-section");
+      const scriptsList = document.getElementById("scripts-list");
+      const startFoldersEl = document.getElementById("start-folders");
+      const encodersEl = document.getElementById("encoders");
+
+      const appendLog = (text) => {
+        logEl.textContent += text + "\n";
+        logEl.scrollTop = logEl.scrollHeight;
+      };
+
+      const setBusy = (busy) => {
+        document.getElementById("run-btn").disabled = busy;
+        document.getElementById("run-all-btn").disabled = busy;
+        document.getElementById("clear-btn").disabled = busy;
+      };
+
+      const renderScripts = (scripts) => {
+        scriptsList.innerHTML = "";
+        if (!scripts.length) {
+          scriptsList.textContent = "No scripts found in cmd folder.";
+          return;
+        }
+        for (const script of scripts) {
+          const row = document.createElement("div");
+          row.className = "script-row";
+          const code = document.createElement("code");
+          code.textContent = script.displayName;
+          code.title = script.name;
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = "Run";
+          btn.addEventListener("click", async () => {
+            setBusy(true);
+            appendLog(`Running ${script.displayName}...`);
+            const res = await fetch("/api/scripts/run", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ path: script.path }),
+            });
+            const data = await res.json();
+            appendLog(data.output || JSON.stringify(data));
+            if (data.scripts) {
+              renderScripts(data.scripts);
+            }
+            setBusy(false);
+          });
+          row.append(code, btn);
+          scriptsList.append(row);
+        }
+      };
+
+      const loadScripts = async () => {
+        const res = await fetch("/api/scripts");
+        const scripts = await res.json();
+        scriptsSection.classList.remove("hidden");
+        renderScripts(scripts);
+      };
+
+      const loadConfig = async () => {
+        const res = await fetch("/api/config");
+        const data = await res.json();
+        startFoldersEl.innerHTML = "";
+        encodersEl.innerHTML = "";
+
+        data.startFolders.forEach((folder, index) => {
+          const id = `start-${index}`;
+          const label = document.createElement("label");
+          label.innerHTML = `<input type="radio" name="startFolder" id="${id}" value="${folder.path}" ${index === 0 ? "checked" : ""} /> ${folder.name} <small>(${folder.path})</small>`;
+          startFoldersEl.append(label);
+        });
+
+        data.encoders.forEach((encoder, index) => {
+          const id = `encoder-${index}`;
+          const label = document.createElement("label");
+          label.innerHTML = `<input type="checkbox" name="encoder" id="${id}" value="${encoder.id}" ${encoder.default ? "checked" : ""} /> ${encoder.label}${encoder.description ? ` — ${encoder.description}` : ""}`;
+          encodersEl.append(label);
+        });
+      };
+
+      document.getElementById("run-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const startFolder = document.querySelector('input[name="startFolder"]:checked')?.value;
+        const encoderIds = [...document.querySelectorAll('input[name="encoder"]:checked')].map((el) => el.value);
+        const filter = document.getElementById("filter").value;
+
+        if (!startFolder || !encoderIds.length) {
+          appendLog("Select a source folder and at least one encoder.");
+          return;
+        }
+
+        setBusy(true);
+        appendLog("Scanning library and generating scripts...");
+        const res = await fetch("/api/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startFolder, encoderIds, filter }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          appendLog(data.error);
+        } else {
+          appendLog(`Done in ${data.elapsedSeconds}s. ${data.scripts.length} script(s) created.`);
+          renderScripts(data.scripts);
+          scriptsSection.classList.remove("hidden");
+        }
+        setBusy(false);
+      });
+
+      document.getElementById("run-all-btn").addEventListener("click", async () => {
+        setBusy(true);
+        appendLog("Running all scripts...");
+        const res = await fetch("/api/scripts/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ all: true }),
+        });
+        const data = await res.json();
+        appendLog(data.output || JSON.stringify(data));
+        if (data.scripts) {
+          renderScripts(data.scripts);
+        }
+        setBusy(false);
+      });
+
+      document.getElementById("refresh-btn").addEventListener("click", loadScripts);
+
+      document.getElementById("clear-btn").addEventListener("click", async () => {
+        if (!confirm("Delete all generated scripts in the cmd folder?")) {
+          return;
+        }
+        setBusy(true);
+        const res = await fetch("/api/scripts/clear", { method: "POST" });
+        const data = await res.json();
+        if (data.error) {
+          appendLog(data.error);
+        } else {
+          appendLog(`Cleared ${data.cleared} script(s).`);
+          renderScripts([]);
+        }
+        setBusy(false);
+      });
+
+      loadConfig().then(loadScripts);
+    </script>
+  </body>
+</html>

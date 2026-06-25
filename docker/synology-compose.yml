@@ -1,0 +1,50 @@
+# Synology Container Manager → Project → Create
+#
+# Edit volume paths if your shared folders differ.
+#
+# Required before starting:
+#   /volume1/docker/music-downcoder/music/
+#   /volume1/docker/music-downcoder/cmd/
+#   /volume1/docker/music-downcoder/queueInProgress/
+#   /volume1/docker/music-downcoder/config/conf.json
+#   /volume1/Music/cds-alac/   (optional output — must be writable)
+#   /volume1/Music/cds-mp3/    (optional output — must be writable)
+#
+# Copy docker/conf.json to config/conf.json and adjust paths for your NAS.
+#
+# No image build. Uses node:20-alpine only.
+
+version: "3.8"
+
+services:
+  music-downcoder:
+    image: node:20-alpine
+    restart: unless-stopped
+    ports:
+      - "3798:3798"
+    environment:
+      MUSIC_DOWNCODER_REFRESH_HOURS: "3"
+    volumes:
+      - /volume1/docker/music-downcoder/music:/data/music
+      - /volume1/docker/music-downcoder/cmd:/data/cmd
+      - /volume1/docker/music-downcoder/queueInProgress:/data/queueInProgress
+      - /volume1/docker/music-downcoder/config:/data/config
+      - /volume1/Music/cds-alac:/data/cds-alac
+      - /volume1/Music/cds-mp3:/data/cds-mp3
+    command:
+      - /bin/sh
+      - -c
+      - |
+        apk add --no-cache bash ffmpeg rsync
+        REFRESH=$(($${MUSIC_DOWNCODER_REFRESH_HOURS:-3} * 3600))
+        while true; do
+          echo "[music_downcoder] starting $$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          rm -rf /root/.npm/_npx 2>/dev/null || true
+          npx --yes @emgeebee/music_downcoder@latest serve \
+            -H 0.0.0.0 -p 3798 \
+            -c /data/config/conf.json &
+          PID=$$!
+          ( sleep $$REFRESH; kill $$PID 2>/dev/null || true ) &
+          wait $$PID 2>/dev/null || true
+          sleep 2
+        done

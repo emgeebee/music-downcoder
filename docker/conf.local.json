@@ -1,0 +1,42 @@
+{
+  "ffmpeg": "/Applications/ffmpeg",
+  "rate": "0",
+  "numOfCores": 4,
+  "workDir": "..",
+  "commandsFolder": "../cmd",
+  "queueFolder": "../queueInProgress",
+  "metaFile": "../meta.json",
+  "autoConfirm": true,
+  "startFolders": [
+    {
+      "name": "Music library",
+      "path": "/Volumes/Music/downloads"
+    }
+  ],
+  "encoders": [
+    {
+      "id": "alac",
+      "label": "ALAC",
+      "description": "Copies the files directly (hopefully it's ALAC)",
+      "default": true,
+      "out": "/Volumes/Music/cds-alac",
+      "format": "cp",
+      "getImages": false
+    },
+    {
+      "id": "main",
+      "label": "mp3",
+      "default": true,
+      "out": "/Volumes/Music/cds-mp3",
+      "format": "mp3"
+    },
+    {
+      "id": "ogg",
+      "label": "ogg",
+      "default": false,
+      "out": "/Volumes/Music/cds-ogg",
+      "format": "ogg",
+      "getImages": false
+    }
+  ]
+}
