@@ -55,6 +55,14 @@ const pathSanitiser = (i: string): string => i.replace(/[`\$\"]/g, "\\$&");
 const sanitiseMeta = (meta: string): string =>
   meta.replace(/\//g, "_").replace(/:/g, "_");
 
+const shouldSkipDir = (name: string): boolean =>
+  name.startsWith("@") || name === "#recycle";
+
+const shouldSkipFile = (name: string): boolean =>
+  name.startsWith("@") ||
+  name.startsWith(".") ||
+  name.includes("@SynoEAStream");
+
 export const walkSync = async function <T>(
   start: string,
   callback: WalkCallback<T>,
@@ -70,8 +78,10 @@ export const walkSync = async function <T>(
         const abspath = path.join(start, name);
 
         if (fs.statSync(abspath).isDirectory()) {
-          acc.dirs.push(name);
-        } else {
+          if (!shouldSkipDir(name)) {
+            acc.dirs.push(name);
+          }
+        } else if (!shouldSkipFile(name)) {
           acc.names.push(name);
         }
 
@@ -211,7 +221,7 @@ const checkFiles = async (
   };
 
   for (const file of files) {
-    if (file[0] === ".") {
+    if (shouldSkipFile(file)) {
       continue;
     }
 
