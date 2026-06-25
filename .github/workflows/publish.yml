@@ -29,11 +29,7 @@ jobs:
         run: npm run build
 
       - name: Publish to npm
-        if: ${{ secrets.NPM_TOKEN != '' }}
+        continue-on-error: true
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Skip publish (no NPM_TOKEN)
-        if: ${{ secrets.NPM_TOKEN == '' }}
-        run: echo "Skipping npm publish — add an NPM_TOKEN repository secret to enable."
