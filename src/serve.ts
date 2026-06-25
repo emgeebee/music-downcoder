@@ -22,6 +22,11 @@ import { appendJobLog, getJobLogs } from "./jobLog.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "../package.json"), "utf-8")
+) as { version: string };
+const appVersion = packageJson.version;
+
 const args = minimist(process.argv.slice(2), {
   string: ["H", "p", "c"],
   alias: { H: "host", p: "port", c: "config" },
@@ -91,6 +96,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname === "/api/config") {
     sendJson(res, 200, {
+      version: appVersion,
       startFolders: config.startFolders,
       encoders: config.encoders,
     });

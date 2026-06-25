@@ -57,10 +57,15 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      .app-version {
+        color: #888;
+        font-size: 0.9rem;
+        font-weight: normal;
+      }
     </style>
   </head>
   <body>
-    <h1>Music Downcoder</h1>
+    <h1>Music Downcoder <span id="app-version" class="app-version"></span></h1>
     <p>Generate ffmpeg conversion scripts, then run them from the browser.</p>
 
     <section id="setup-section">
@@ -214,6 +219,10 @@
           label.innerHTML = `<input type="checkbox" name="encoder" id="${id}" value="${encoder.id}" ${encoder.default ? "checked" : ""} /> ${encoder.label}${encoder.description ? ` — ${encoder.description}` : ""}`;
           encodersEl.append(label);
         });
+
+        if (data.version) {
+          document.getElementById("app-version").textContent = `v${data.version}`;
+        }
       };
 
       document.getElementById("run-form").addEventListener("submit", async (event) => {
