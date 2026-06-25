@@ -105,10 +105,47 @@
         logEl.scrollTop = logEl.scrollHeight;
       };
 
+      let lastLogId = 0;
+      let logTimer = null;
+
+      const appendServerEntry = (entry) => {
+        const prefix =
+          entry.level === "error" ? "ERROR: " : entry.level === "warn" ? "WARN: " : "";
+        logEl.textContent += prefix + entry.message + "\n";
+        logEl.scrollTop = logEl.scrollHeight;
+        lastLogId = entry.id;
+      };
+
+      const pollLogs = async () => {
+        const res = await fetch(`/api/logs?since=${lastLogId}`);
+        const data = await res.json();
+        for (const entry of data.entries) {
+          appendServerEntry(entry);
+        }
+      };
+
+      const startLogPoll = () => {
+        stopLogPoll();
+        logTimer = setInterval(() => {
+          pollLogs().catch(() => {});
+        }, 800);
+      };
+
+      const stopLogPoll = async () => {
+        if (logTimer) {
+          clearInterval(logTimer);
+          logTimer = null;
+        }
+        await pollLogs().catch(() => {});
+      };
+
       const setBusy = (busy) => {
         document.getElementById("run-btn").disabled = busy;
         document.getElementById("run-all-btn").disabled = busy;
         document.getElementById("clear-btn").disabled = busy;
+        if (busy) {
+          startLogPoll();
+        }
       };
 
       const renderScripts = (scripts) => {
@@ -135,7 +172,12 @@
               body: JSON.stringify({ path: script.path }),
             });
             const data = await res.json();
-            appendLog(data.output || JSON.stringify(data));
+            await stopLogPoll();
+            if (data.error) {
+              appendLog(`Error: ${data.error}`);
+            } else if (data.output) {
+              appendLog(data.output);
+            }
             if (data.scripts) {
               renderScripts(data.scripts);
             }
@@ -187,14 +229,19 @@
 
         setBusy(true);
         appendLog("Scanning library and generating scripts...");
-        const res = await fetch("/api/run", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ startFolder, encoderIds, filter }),
-        });
-        const data = await res.json();
+        let data = {};
+        try {
+          const res = await fetch("/api/run", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ startFolder, encoderIds, filter }),
+          });
+          data = await res.json();
+        } finally {
+          await stopLogPoll();
+        }
         if (data.error) {
-          appendLog(data.error);
+          appendLog(`Error: ${data.error}`);
         } else {
           appendLog(`Done in ${data.elapsedSeconds}s. ${data.scripts.length} script(s) created.`);
           renderScripts(data.scripts);
@@ -212,7 +259,12 @@
           body: JSON.stringify({ all: true }),
         });
         const data = await res.json();
-        appendLog(data.output || JSON.stringify(data));
+        await stopLogPoll();
+        if (data.error) {
+          appendLog(`Error: ${data.error}`);
+        } else if (data.output) {
+          appendLog(data.output);
+        }
         if (data.scripts) {
           renderScripts(data.scripts);
         }
@@ -237,7 +289,9 @@
         setBusy(false);
       });
 
-      loadConfig().then(loadScripts);
+      loadConfig()
+        .then(loadScripts)
+        .then(() => pollLogs());
     </script>
   </body>
 </html>

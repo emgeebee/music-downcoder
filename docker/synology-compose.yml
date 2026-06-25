@@ -21,11 +21,13 @@ services:
     image: node:20-alpine
     restart: unless-stopped
     ports:
-      - "3798:3798"
+      # Host port (left) — override if 3798 is taken, e.g. UI_PORT=3799 docker compose up
+      - "${UI_PORT:-3798}:3798"
     environment:
       MUSIC_DOWNCODER_REFRESH_HOURS: "3"
     volumes:
-      - /volume1/docker/music-downcoder/music:/data/music
+      - /volume1/Music/downloads:/data/music
+      - /volume1/Itunes/Music/Music:/data/itunes
       - /volume1/docker/music-downcoder/cmd:/data/cmd
       - /volume1/docker/music-downcoder/queueInProgress:/data/queueInProgress
       - /volume1/docker/music-downcoder/config:/data/config
@@ -40,7 +42,7 @@ services:
         while true; do
           echo "[music_downcoder] starting $$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           rm -rf /root/.npm/_npx 2>/dev/null || true
-          npx --yes @emgeebee/music_downcoder@latest serve \
+          npx --yes @emgeebee/music_downcoder@1.1.0 serve \
             -H 0.0.0.0 -p 3798 \
             -c /data/config/conf.json &
           PID=$$!

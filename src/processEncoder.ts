@@ -7,6 +7,7 @@ import type { AppConfig, ConfigKey, ConfigMap } from "./config.js";
 import { MetaGetter, Metadata } from "./getMeta.js";
 import type { Prompts } from "./prompts.js";
 import { relativeFrom, normalizeDir } from "./paths.js";
+import { setJobProgress } from "./progress.js";
 
 interface FileCollection {
   names: string[];
@@ -80,6 +81,7 @@ export const walkSync = async function <T>(
     );
 
     const result = await callback(start, coll.dirs, coll.names);
+    setJobProgress(`Scanning ${start}...`);
 
     const results: T[] = [result];
     for (const d of coll.dirs) {

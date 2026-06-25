@@ -17,6 +17,8 @@ import {
   type RunResult,
 } from "./run.js";
 import { describeScripts } from "./scripts.js";
+import { getJobProgress } from "./progress.js";
+import { appendJobLog, getJobLogs } from "./jobLog.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +39,15 @@ if (!configPath) {
 initRuntime(configPath);
 const config = getConfig();
 const prompts = createAutoPrompts(config);
+
+for (const folder of config.startFolders) {
+  if (!fs.existsSync(folder.path)) {
+    appendJobLog(
+      `WARNING: source folder missing: ${folder.path} (${folder.name})`,
+      "warn"
+    );
+  }
+}
 
 const port = Number(args.port);
 const host = args.host as string;
@@ -92,8 +103,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/logs") {
+    const since = Number(url.searchParams.get("since") ?? "0");
+    sendJson(res, 200, { entries: getJobLogs(since) });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/status") {
-    sendJson(res, 200, { busy: runningJob !== null });
+    const progress = getJobProgress();
+    sendJson(res, 200, {
+      busy: runningJob !== null,
+      message: progress.message,
+    });
     return;
   }
 
@@ -109,26 +130,33 @@ const server = http.createServer(async (req, res) => {
       filter?: string;
     };
 
-    runningJob = runDowncoder({
-      startFolder: body.startFolder,
-      encoderIds: body.encoderIds,
-      filter: body.filter ?? "",
-      configPath,
-      prompts,
-    })
-      .then((result) => {
-        lastScripts = result.scripts;
-        return result;
+    try {
+      runningJob = runDowncoder({
+        startFolder: body.startFolder,
+        encoderIds: body.encoderIds,
+        filter: body.filter ?? "",
+        configPath,
+        prompts,
       })
-      .finally(() => {
-        runningJob = null;
-      });
+        .then((result) => {
+          lastScripts = result.scripts;
+          return result;
+        })
+        .finally(() => {
+          runningJob = null;
+        });
 
-    const result = (await runningJob) as RunResult;
-    sendJson(res, 200, {
-      ...result,
-      scripts: toScriptResponse(result.scripts),
-    });
+      const result = (await runningJob) as RunResult;
+      sendJson(res, 200, {
+        ...result,
+        scripts: toScriptResponse(result.scripts),
+      });
+    } catch (error) {
+      runningJob = null;
+      const message = error instanceof Error ? error.message : String(error);
+      appendJobLog(`Scan failed: ${message}`, "error");
+      sendJson(res, 500, { error: message });
+    }
     return;
   }
 
@@ -151,25 +179,31 @@ const server = http.createServer(async (req, res) => {
     }
 
     const body = JSON.parse(await readBody(req)) as { path?: string; all?: boolean };
-    runningJob = (async () => {
-      if (body.all) {
-        const scripts = listCommandScripts(config);
-        return executeAllScripts(scripts, config);
-      }
-      if (!body.path) {
-        throw new Error("path is required");
-      }
-      return executeScript(body.path, config);
-    })().finally(() => {
-      runningJob = null;
-    });
+    try {
+      runningJob = (async () => {
+        if (body.all) {
+          const scripts = listCommandScripts(config);
+          return executeAllScripts(scripts, config);
+        }
+        if (!body.path) {
+          throw new Error("path is required");
+        }
+        return executeScript(body.path, config);
+      })().finally(() => {
+        runningJob = null;
+      });
 
-    const result = await runningJob;
-    lastScripts = listCommandScripts(config);
-    sendJson(res, 200, {
-      ...result,
-      scripts: toScriptResponse(lastScripts),
-    });
+      const result = await runningJob;
+      lastScripts = listCommandScripts(config);
+      sendJson(res, 200, {
+        ...result,
+        scripts: toScriptResponse(lastScripts),
+      });
+    } catch (error) {
+      runningJob = null;
+      const message = error instanceof Error ? error.message : String(error);
+      sendJson(res, 500, { error: message });
+    }
     return;
   }
 
@@ -177,6 +211,10 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
+  appendJobLog(
+    `Web UI at http://${host === "0.0.0.0" ? "localhost" : host}:${port}`
+  );
+  appendJobLog(`Config: ${configPath}`);
   console.log(
     `[music_downcoder] web UI at http://${host === "0.0.0.0" ? "localhost" : host}:${port}`
   );

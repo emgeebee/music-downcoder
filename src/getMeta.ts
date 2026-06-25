@@ -1,9 +1,11 @@
-import term from "child_process";
+import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import type { AppConfig } from "./config.js";
 import type { Prompts } from "./prompts.js";
 import { shellPath } from "./paths.js";
+
+const FFMPEG_TIMEOUT_MS = 30_000;
 
 export interface Metadata {
   fullArtist: string;
@@ -15,6 +17,44 @@ export interface Metadata {
 interface MetadataCache {
   [dirPath: string]: Metadata;
 }
+
+const readFfmpegMetadata = (
+  ffmpeg: string,
+  inputPath: string
+): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const child = spawn(
+      ffmpeg,
+      ["-y", "-i", inputPath, "-f", "ffmetadata", "pipe:1"],
+      { stdio: ["ignore", "pipe", "pipe"] }
+    );
+
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`ffmpeg timed out after ${FFMPEG_TIMEOUT_MS / 1000}s: ${inputPath}`));
+    }, FFMPEG_TIMEOUT_MS);
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code !== 0 && !stdout) {
+        reject(new Error(`ffmpeg failed (${code}) for ${inputPath}: ${stderr.trim()}`));
+        return;
+      }
+      resolve(stdout);
+    });
+  });
 
 export class MetaGetter {
   private metaData: MetadataCache = {};
@@ -52,10 +92,7 @@ export class MetaGetter {
       } catch {
         console.log(` no backup file at ${backupFile}, falling back to ffmpeg`);
         const inputPath = shellPath(dirPath, filename);
-        const meta = term.execSync(
-          `${this.config.ffmpeg} -y -i "${inputPath}" -f ffmetaData pipe:1`,
-          { encoding: "utf-8" }
-        );
+        const meta = await readFfmpegMetadata(this.config.ffmpeg, inputPath);
         const genreMatch = meta.match(/genre.*/gi);
         const genre = genreMatch ? genreMatch[0].split("=")[1] : "";
 
@@ -68,13 +105,6 @@ export class MetaGetter {
         const fullAlbumArtistResults = albumArtistReg.exec(meta);
         const fullAlbumResults = albumReg.exec(meta);
         const yearResults = yearReg.exec(meta);
-
-        console.log(
-          fullAlbumResults,
-          fullAlbumArtistResults,
-          fullArtistResults,
-          yearResults
-        );
 
         let fullArtist = "";
         let fullAlbum = "";

@@ -14,7 +14,9 @@ import {
   prepareCommandFolders,
   processEncoder,
 } from "./processEncoder.js";
-import { normalizeTerminalOutput } from "./paths.js";
+import { normalizeDir, normalizeTerminalOutput } from "./paths.js";
+import { captureConsole, clearJobLogs, appendJobLog } from "./jobLog.js";
+import { clearJobProgress, setJobProgress } from "./progress.js";
 import { createAutoPrompts, createCliPrompts, type Prompts } from "./prompts.js";
 
 export interface RunOptions {
@@ -44,22 +46,44 @@ export const runDowncoder = async (options: RunOptions): Promise<RunResult> => {
     ? initRuntime(options.configPath)
     : getConfig();
   const prompts = options.prompts ?? createCliPrompts();
-  const configMap = buildConfigMap(options.startFolder, options.encoderIds);
+  const normalizedStart = normalizeDir(options.startFolder);
+
+  if (!fs.existsSync(normalizedStart)) {
+    throw new Error(`Source folder does not exist: ${normalizedStart}`);
+  }
+  if (!fs.statSync(normalizedStart).isDirectory()) {
+    throw new Error(`Source path is not a directory: ${normalizedStart}`);
+  }
+
+  const configMap = buildConfigMap(normalizedStart, options.encoderIds);
   const metaGetter = new MetaGetter(config, prompts);
 
   const start = Date.now();
   prepareCommandFolders(config);
+  clearJobLogs();
+  const restoreConsole = captureConsole();
 
-  for (const key of options.encoderIds) {
-    await processEncoder(
-      key,
-      options.startFolder,
-      options.filter,
-      config,
-      configMap,
-      metaGetter,
-      prompts
-    );
+  try {
+    setJobProgress(`Scanning ${normalizedStart}...`);
+    for (let i = 0; i < options.encoderIds.length; i++) {
+      const key = options.encoderIds[i];
+      setJobProgress(
+        `Encoder ${i + 1}/${options.encoderIds.length} (${key}) — walking library...`
+      );
+      await processEncoder(
+        key,
+        normalizedStart,
+        options.filter,
+        config,
+        configMap,
+        metaGetter,
+        prompts
+      );
+    }
+    setJobProgress("Writing scripts...");
+  } finally {
+    restoreConsole();
+    clearJobProgress();
   }
 
   return {
@@ -72,6 +96,7 @@ export const executeScript = (
   scriptPath: string,
   config: AppConfig = getConfig()
 ): Promise<{ code: number; output: string }> => {
+  const restoreConsole = captureConsole();
   return new Promise((resolve, reject) => {
     const resolvedScriptPath = path.resolve(scriptPath);
     const filename = path.basename(resolvedScriptPath);
@@ -91,13 +116,20 @@ export const executeScript = (
     });
 
     let output = "";
-    child.stdout.on("data", (chunk: Buffer) => {
-      output += chunk.toString();
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      output += chunk.toString();
-    });
+    const logStream = (chunk: Buffer) => {
+      const text = chunk.toString();
+      output += text;
+      for (const line of text.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed) {
+          appendJobLog(trimmed);
+        }
+      }
+    };
+    child.stdout.on("data", logStream);
+    child.stderr.on("data", logStream);
     child.on("error", (error) => {
+      restoreConsole();
       try {
         fs.renameSync(queuePath, resolvedScriptPath);
       } catch {
@@ -106,6 +138,7 @@ export const executeScript = (
       reject(error);
     });
     child.on("close", (code) => {
+      restoreConsole();
       try {
         fs.unlinkSync(queuePath);
       } catch {

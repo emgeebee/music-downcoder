@@ -5,11 +5,16 @@
   "commandsFolder": "/data/cmd",
   "queueFolder": "/data/queueInProgress",
   "metaFile": "/data/config/meta.json",
+  "workDir": "/data",
   "autoConfirm": true,
   "startFolders": [
     {
-      "name": "Music library",
+      "name": "Downloads",
       "path": "/data/music"
+    },
+    {
+      "name": "Itunes",
+      "path": "/data/itunes"
     }
   ],
   "encoders": [
@@ -28,14 +33,6 @@
       "default": true,
       "out": "/data/cds-mp3",
       "format": "mp3"
-    },
-    {
-      "id": "ogg",
-      "label": "ogg",
-      "default": false,
-      "out": "/data/cds-ogg",
-      "format": "ogg",
-      "getImages": false
     }
   ]
 }
