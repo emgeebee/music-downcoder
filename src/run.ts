@@ -19,6 +19,20 @@ import { captureConsole, clearJobLogs, appendJobLog } from "./jobLog.js";
 import { clearJobProgress, setJobProgress } from "./progress.js";
 import { createAutoPrompts, createCliPrompts, type Prompts } from "./prompts.js";
 
+const moveFile = (src: string, dest: string): void => {
+  try {
+    fs.renameSync(src, dest);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "EXDEV") {
+      fs.copyFileSync(src, dest);
+      fs.unlinkSync(src);
+      return;
+    }
+    throw error;
+  }
+};
+
 export interface RunOptions {
   startFolder: string;
   encoderIds: ConfigKey[];
@@ -104,7 +118,7 @@ export const executeScript = (
     fs.mkdirSync(config.queueFolder, { recursive: true });
 
     try {
-      fs.renameSync(resolvedScriptPath, queuePath);
+      moveFile(resolvedScriptPath, queuePath);
     } catch (error) {
       reject(error);
       return;
@@ -131,7 +145,7 @@ export const executeScript = (
     child.on("error", (error) => {
       restoreConsole();
       try {
-        fs.renameSync(queuePath, resolvedScriptPath);
+        moveFile(queuePath, resolvedScriptPath);
       } catch {
         // ignore restore errors
       }
