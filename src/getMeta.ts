@@ -116,7 +116,7 @@ export class MetaGetter {
           fullAlbum = fullAlbumResults ? fullAlbumResults[1] : "";
         }
 
-        const possibleYear = yearResults?.[1].slice(0, 4) ?? "0000";
+        const possibleYear = yearResults?.[1]?.slice(0, 4)?.trim() ?? "";
 
         const confirmedAll = await this.prompts.confirm(
           `Use genre = ${genre}, artist = ${fullArtist}, album = ${fullAlbum}, year = ${possibleYear}`

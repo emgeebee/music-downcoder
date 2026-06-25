@@ -55,6 +55,47 @@ const pathSanitiser = (i: string): string => i.replace(/[`\$\"]/g, "\\$&");
 const sanitiseMeta = (meta: string): string =>
   meta.replace(/\//g, "_").replace(/:/g, "_");
 
+const sanitisePathSegment = (segment: string): string =>
+  sanitiseMeta(segment).trim();
+
+const isValidYear = (year: string): boolean => {
+  const trimmed = year.trim();
+  if (!trimmed || trimmed === "0" || trimmed === "0000") {
+    return false;
+  }
+  if (!/^\d{4}$/.test(trimmed)) {
+    return false;
+  }
+  const numericYear = Number(trimmed);
+  return numericYear >= 1900 && numericYear <= 2100;
+};
+
+const formatAlbumDirName = (year: string, albumName: string): string => {
+  const name = sanitisePathSegment(albumName);
+  if (!isValidYear(year)) {
+    return name;
+  }
+  return `${`(${year.trim()}) `}${name}`.trim();
+};
+
+const canRenameFolder = (from: string, to: string): boolean => {
+  const normalizedFrom = path.normalize(from);
+  const normalizedTo = path.normalize(to);
+  if (normalizedFrom === normalizedTo) {
+    return false;
+  }
+  if (normalizedTo.startsWith(normalizedFrom + path.sep)) {
+    return false;
+  }
+  if (normalizedFrom.startsWith(normalizedTo + path.sep)) {
+    return false;
+  }
+  if (path.dirname(normalizedFrom) !== path.dirname(normalizedTo)) {
+    return false;
+  }
+  return true;
+};
+
 const shouldSkipDir = (name: string): boolean =>
   name.startsWith("@") || name === "#recycle";
 
@@ -238,7 +279,7 @@ const checkFiles = async (
     const filename = file.replace(/[`]/g, "`");
 
     if (!RegExp("/").test(album)) {
-      const meta = await metaGetter.getMeta(file, filename);
+      const meta = await metaGetter.getMeta(sanistisedDirPath, file);
       album = path.join(meta.fullArtist, album);
     }
 
@@ -249,23 +290,25 @@ const checkFiles = async (
       );
     }
 
-    const artist =
+    let artist =
       results.metaCache[album].fullArtist === "Various Artists"
         ? "Compilations"
-        : sanitiseMeta(results.metaCache[album].fullArtist);
-    const albumName = sanitiseMeta(results.metaCache[album].fullAlbum);
+        : sanitisePathSegment(results.metaCache[album].fullArtist);
+    const genre = sanitisePathSegment(results.metaCache[album].genre);
+    let albumName = sanitisePathSegment(results.metaCache[album].fullAlbum);
+    if (!artist) {
+      artist = sanitisePathSegment(path.basename(path.dirname(sanistisedDirPath)));
+    }
+    if (!albumName) {
+      albumName = sanitisePathSegment(path.basename(sanistisedDirPath));
+    }
 
-    const oldOutputFolder = path.join(
-      outputDir,
-      results.metaCache[album].genre,
-      artist,
-      albumName
-    );
+    const oldOutputFolder = path.join(outputDir, genre, artist, albumName);
     const outputFolder = path.join(
       outputDir,
-      results.metaCache[album].genre,
+      genre,
       artist,
-      `${results.metaCache[album].year ? `(${results.metaCache[album].year}) ` : ""}${albumName}`
+      formatAlbumDirName(results.metaCache[album].year, albumName)
     );
     const output = pathSanitiser(path.join(outputFolder, outputPath));
     const filepath = pathSanitiser(path.join(sanistisedDirPath, filename));
@@ -276,8 +319,16 @@ const checkFiles = async (
           `Rename ${oldOutputFolder} to '${outputFolder}'?`
         );
 
-        if (shouldRename) {
-          fs.renameSync(oldOutputFolder, outputFolder);
+        if (shouldRename && canRenameFolder(oldOutputFolder, outputFolder)) {
+          try {
+            fs.renameSync(oldOutputFolder, outputFolder);
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            console.warn(
+              `Could not rename ${oldOutputFolder} to ${outputFolder}: ${message}`
+            );
+          }
         }
       }
     }

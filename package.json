@@ -1,6 +1,6 @@
 {
   "name": "@emgeebee/music_downcoder",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Scan music libraries and generate ffmpeg conversion scripts with a CLI or web UI",
   "type": "module",
   "bin": {
