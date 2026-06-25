@@ -28,7 +28,6 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       id-token: write
@@ -49,7 +48,7 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Auth via npm Trusted Publisher (OIDC) — no NPM_TOKEN required.
+      # Configured on npmjs.com for workflow file: publish.yml
       - name: Publish to npm
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
