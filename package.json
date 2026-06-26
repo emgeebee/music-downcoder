@@ -1,6 +1,6 @@
 {
   "name": "@emgeebee/music_downcoder",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "description": "Scan music libraries and generate ffmpeg conversion scripts with a CLI or web UI",
   "type": "module",
   "bin": {
@@ -19,6 +19,8 @@
     "list": "find ./cmd/**/*.sh -type f 2>/dev/null | sort -nr",
     "convert": "./batch.sh",
     "clean-empty": "tsx src/cleanEmptyFolders.ts -c docker/conf.local.json",
+    "sync-meta": "tsx src/syncMetaFromLocal.ts -c docker/conf.local.json",
+    "repair-meta-years": "tsx src/repairMetaYears.ts -c docker/conf.local.json",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
