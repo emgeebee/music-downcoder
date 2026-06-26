@@ -95,6 +95,20 @@
       .form-group {
         margin-bottom: 1.1rem;
       }
+      .form-row {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: 1fr 1fr;
+        margin-bottom: 1.1rem;
+      }
+      .form-row .form-group {
+        margin-bottom: 0;
+      }
+      @media (max-width: 900px) {
+        .form-row {
+          grid-template-columns: 1fr;
+        }
+      }
       .form-group:last-of-type {
         margin-bottom: 0;
       }
@@ -283,28 +297,63 @@
         gap: 0.45rem;
         margin-bottom: 0.25rem;
       }
+      .script-accordion {
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+      }
+      .script-accordion[open] {
+        border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+      }
+      .script-summary {
+        align-items: center;
+        cursor: pointer;
+        display: flex;
+        gap: 0.75rem;
+        justify-content: space-between;
+        list-style: none;
+        padding: 0.55rem 0.65rem 0.55rem 0.8rem;
+      }
+      .script-summary::-webkit-details-marker {
+        display: none;
+      }
+      .script-summary::before {
+        color: var(--text-muted);
+        content: "▸";
+        flex-shrink: 0;
+        font-size: 0.75rem;
+        transition: transform 0.15s;
+        width: 0.75rem;
+      }
+      .script-accordion[open] .script-summary::before {
+        transform: rotate(90deg);
+      }
+      .script-title {
+        flex: 1;
+        font-family: ui-monospace, "Cascadia Code", "SF Mono", monospace;
+        font-size: 0.84rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .script-commands {
+        background: #00000010;
+        border-top: 1px solid var(--border);
+        font-family: ui-monospace, "Cascadia Code", "SF Mono", monospace;
+        font-size: 0.78rem;
+        line-height: 1.45;
+        margin: 0;
+        max-height: 16rem;
+        overflow: auto;
+        padding: 0.65rem 0.8rem;
+        white-space: pre-wrap;
+      }
       .empty-state {
         color: var(--text-muted);
         font-size: 0.92rem;
         padding: 0.5rem 0;
-      }
-      .script-row {
-        align-items: center;
-        background: var(--surface-raised);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        display: flex;
-        gap: 0.75rem;
-        justify-content: space-between;
-        padding: 0.55rem 0.65rem 0.55rem 0.8rem;
-      }
-      .script-row code {
-        flex: 1;
-        font-family: ui-monospace, "Cascadia Code", "SF Mono", monospace;
-        font-size: 0.84rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
       }
       .app-version {
         color: var(--text-muted);
@@ -352,13 +401,15 @@
             <h2>Scan library</h2>
           </div>
           <form id="run-form">
-            <div class="form-group">
-              <h3 class="form-label">Source folder</h3>
-              <div class="option-grid" id="start-folders"></div>
-            </div>
-            <div class="form-group">
-              <h3 class="form-label">Encoders</h3>
-              <div class="option-grid" id="encoders"></div>
+            <div class="form-row">
+              <div class="form-group">
+                <h3 class="form-label">Source folder</h3>
+                <div class="option-grid" id="start-folders"></div>
+              </div>
+              <div class="form-group">
+                <h3 class="form-label">Encoders</h3>
+                <div class="option-grid" id="encoders"></div>
+              </div>
             </div>
             <label class="filter-field">
               <span>Artist filter (prefix)</span>
@@ -521,16 +572,24 @@
           return;
         }
         for (const script of scripts) {
-          const row = document.createElement("div");
-          row.className = "script-row";
-          const code = document.createElement("code");
-          code.textContent = script.displayName;
-          code.title = script.name;
+          const item = document.createElement("details");
+          item.className = "script-accordion";
+
+          const summary = document.createElement("summary");
+          summary.className = "script-summary";
+
+          const title = document.createElement("span");
+          title.className = "script-title";
+          title.textContent = script.displayName;
+          title.title = script.name;
+
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "btn-primary btn-sm";
           btn.textContent = "Run";
-          btn.addEventListener("click", async () => {
+          btn.addEventListener("click", async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
             setBusy(true);
             appendLog(`Running ${script.displayName}...`);
             const res = await fetch("/api/scripts/run", {
@@ -550,8 +609,18 @@
             }
             setBusy(false);
           });
-          row.append(code, btn);
-          scriptsList.append(row);
+
+          summary.append(title, btn);
+          item.append(summary);
+
+          if (script.commands?.length) {
+            const commands = document.createElement("pre");
+            commands.className = "script-commands";
+            commands.textContent = script.commands.join("\n");
+            item.append(commands);
+          }
+
+          scriptsList.append(item);
         }
       };
 

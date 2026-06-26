@@ -11,6 +11,7 @@ export interface ScriptInfo {
   album: string;
   type: string;
   trackCount: number;
+  commands: string[];
 }
 
 const extractLastQuotedPath = (line: string): string | null => {
@@ -86,11 +87,13 @@ export const describeScript = (
   let artist = "Unknown artist";
   let album = "Unknown album";
   let trackCount = 0;
+  let commands: string[] = [];
 
   try {
     const content = fs.readFileSync(scriptPath, "utf-8");
     const lines = content.split("\n");
     trackCount = countTracks(lines);
+    commands = lines.map((line) => line.trimEnd()).filter((line) => line.length > 0);
 
     if (encoderOut) {
       for (const line of lines) {
@@ -120,6 +123,7 @@ export const describeScript = (
     album,
     type: encoder.label,
     trackCount,
+    commands,
   };
 };
 
