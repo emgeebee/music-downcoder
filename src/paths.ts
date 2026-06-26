@@ -37,3 +37,7 @@ export const normalizeTerminalOutput = (output: string): string =>
 /** Join path segments for ffmpeg shell commands (always POSIX-style slashes). */
 export const shellPath = (...segments: string[]): string =>
   path.join(...segments).replace(/\\/g, "/");
+
+/** Quote a path for use in generated bash scripts. */
+export const shellQuote = (value: string): string =>
+  `"${value.replace(/\\/g, "/").replace(/"/g, '\\"')}"`;

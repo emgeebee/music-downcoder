@@ -4,6 +4,8 @@ const [command] = process.argv.slice(2);
 
 if (command === "serve") {
   await import("./serve.js");
+} else if (command === "clean-empty") {
+  await import("./cleanEmptyFolders.js");
 } else {
   await import("./cli.js");
 }

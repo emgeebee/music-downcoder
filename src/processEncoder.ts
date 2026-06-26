@@ -6,7 +6,7 @@ import path from "path";
 import type { AppConfig, ConfigKey, ConfigMap } from "./config.js";
 import { MetaGetter, Metadata } from "./getMeta.js";
 import type { Prompts } from "./prompts.js";
-import { relativeFrom, normalizeDir } from "./paths.js";
+import { relativeFrom, normalizeDir, shellQuote } from "./paths.js";
 import { setJobProgress } from "./progress.js";
 
 interface FileCollection {
@@ -38,9 +38,13 @@ interface CommandsMap {
   [album: string]: string[];
 }
 
+interface FoldersByAlbum {
+  [album: string]: Set<string>;
+}
+
 interface ProcessResults {
   commands: CommandsMap;
-  foldersToCreate: string[];
+  foldersByAlbum: FoldersByAlbum;
   metaCache: MetadataCache;
 }
 
@@ -257,7 +261,7 @@ const checkFiles = async (
 
   const results: ProcessResults = {
     commands: {},
-    foldersToCreate: [],
+    foldersByAlbum: {},
     metaCache: { ...metaCache },
   };
 
@@ -337,10 +341,16 @@ const checkFiles = async (
     try {
       existingFiles = fs.readdirSync(outputFolder);
     } catch {
-      results.foldersToCreate.push(outputFolder);
+      // output folder will be created by the generated script
     }
 
     if (existingFiles.indexOf(outputPath) < 0) {
+      const outputFullPath = path.join(outputFolder, outputPath);
+      if (!results.foldersByAlbum[album]) {
+        results.foldersByAlbum[album] = new Set();
+      }
+      results.foldersByAlbum[album].add(path.dirname(outputFullPath));
+
       const commands = buildCommand(
         filepath,
         output,
@@ -370,10 +380,14 @@ const mergeResults = (
     accumulator.commands[album].push(...current.commands[album]);
   });
 
-  const newFolders = current.foldersToCreate.filter(
-    (folder) => !accumulator.foldersToCreate.includes(folder)
-  );
-  accumulator.foldersToCreate.push(...new Set(newFolders));
+  for (const album of Object.keys(current.foldersByAlbum)) {
+    if (!accumulator.foldersByAlbum[album]) {
+      accumulator.foldersByAlbum[album] = new Set();
+    }
+    for (const folder of current.foldersByAlbum[album]) {
+      accumulator.foldersByAlbum[album].add(folder);
+    }
+  }
   accumulator.metaCache = { ...accumulator.metaCache, ...current.metaCache };
 
   return accumulator;
@@ -384,6 +398,7 @@ const sanitizeScriptName = (album: string): string =>
 
 const writeCommands = (
   commands: CommandsMap,
+  foldersByAlbum: FoldersByAlbum,
   configKey: ConfigKey,
   appConfig: AppConfig
 ): void => {
@@ -395,7 +410,16 @@ const writeCommands = (
       `${sanitizeScriptName(albums)}-${configKey}-commands.sh`
     );
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, commands[albums].join("\n"));
+
+    const folders = [...(foldersByAlbum[albums] ?? new Set<string>())].sort();
+    const mkdirLines = folders.map(
+      (folder) => `mkdir -p ${shellQuote(folder)}`
+    );
+    const scriptBody = commands[albums].join("\n");
+    const content =
+      mkdirLines.length > 0 ? `${mkdirLines.join("\n")}\n${scriptBody}` : scriptBody;
+
+    fs.writeFileSync(filePath, content);
   });
 };
 
@@ -449,20 +473,12 @@ export const processEncoder = async (
 
   const finalResults = results.reduce(mergeResults, {
     commands: {},
-    foldersToCreate: [],
+    foldersByAlbum: {},
     metaCache: {},
   });
 
   metaGetter.writeBack();
-  writeCommands(finalResults.commands, configKey, appConfig);
-
-  for (const outputFolder of finalResults.foldersToCreate) {
-    const confirmation = await prompts.confirm(`Create folder: ${outputFolder}`);
-    if (confirmation) {
-      console.log(`creating folder: ${outputFolder}`);
-      fse.ensureDir(outputFolder);
-    }
-  }
+  writeCommands(finalResults.commands, finalResults.foldersByAlbum, configKey, appConfig);
 
   return finalResults;
 };
