@@ -42,7 +42,7 @@ services:
         while true; do
           echo "[music_downcoder] starting $$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           rm -rf /root/.npm/_npx 2>/dev/null || true
-          npx --yes @emgeebee/music_downcoder@1.1.9 serve \
+          npx --yes @emgeebee/music_downcoder@1.2.0 serve \
             -H 0.0.0.0 -p 3798 \
             -c /data/config/conf.json &
           PID=$$!

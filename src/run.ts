@@ -13,6 +13,7 @@ import {
   listCommandScripts,
   prepareCommandFolders,
   processEncoder,
+  regenerateScript,
 } from "./processEncoder.js";
 import { normalizeDir } from "./paths.js";
 import { captureConsole, clearJobLogs, appendJobLog } from "./jobLog.js";
@@ -184,5 +185,10 @@ export const runBatchShell = (config: AppConfig = getConfig()): void => {
   void executeAllScripts(scripts, config);
 };
 
-export { listCommandScripts, prepareCommandFolders, clearCommandScripts } from "./processEncoder.js";
+export {
+  listCommandScripts,
+  prepareCommandFolders,
+  clearCommandScripts,
+  regenerateScript,
+} from "./processEncoder.js";
 export { createAutoPrompts, createCliPrompts };

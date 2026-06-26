@@ -4,8 +4,10 @@ import fs from "fs";
 import fse from "fs-extra";
 import path from "path";
 import type { AppConfig, ConfigKey, ConfigMap } from "./config.js";
+import { buildConfigMap } from "./config.js";
 import { MetaGetter, Metadata } from "./getMeta.js";
 import type { Prompts } from "./prompts.js";
+import { parseEncoderFromFilename } from "./scripts.js";
 import { relativeFrom, normalizeDir, shellQuote } from "./paths.js";
 import { setJobProgress } from "./progress.js";
 
@@ -516,4 +518,101 @@ export const clearCommandScripts = (appConfig: AppConfig): number => {
   const count = listCommandScripts(appConfig).length;
   prepareCommandFolders(appConfig);
   return count;
+};
+
+const findStartFolderForSource = (
+  sourcePath: string,
+  appConfig: AppConfig
+): string => {
+  const normalized = normalizeDir(sourcePath);
+  for (const folder of appConfig.startFolders) {
+    const base = normalizeDir(folder.path);
+    const rel = path.relative(base, normalized);
+    if (!rel.startsWith("..")) {
+      return base;
+    }
+  }
+  throw new Error(
+    `Source path is not under any configured start folder: ${sourcePath}`
+  );
+};
+
+const writeScriptFile = (
+  scriptPath: string,
+  commands: string[],
+  folders: Set<string>
+): void => {
+  const mkdirLines = [...folders].sort().map(
+    (folder) => `mkdir -p ${shellQuote(folder)}`
+  );
+  const scriptBody = commands.join("\n");
+  const content =
+    mkdirLines.length > 0 ? `${mkdirLines.join("\n")}\n${scriptBody}` : scriptBody;
+
+  fs.rmSync(scriptPath, { force: true });
+  fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+  fs.writeFileSync(scriptPath, content);
+};
+
+export const regenerateScript = async (
+  scriptPath: string,
+  sourcePath: string,
+  appConfig: AppConfig,
+  prompts: Prompts
+): Promise<void> => {
+  if (!fs.existsSync(scriptPath)) {
+    throw new Error(`Script not found: ${scriptPath}`);
+  }
+
+  const encoder = parseEncoderFromFilename(path.basename(scriptPath), appConfig);
+  const configKey = encoder.id;
+  const normalizedSource = normalizeDir(sourcePath);
+  const startFolder = findStartFolderForSource(normalizedSource, appConfig);
+  const configMap = buildConfigMap(startFolder, [configKey]);
+
+  const noRenamePrompts: Prompts = {
+    ...prompts,
+    confirm: async (message, defaultYes) => {
+      if (message.startsWith("Rename ")) {
+        return false;
+      }
+      return prompts.confirm(message, defaultYes);
+    },
+  };
+
+  const metaGetter = new MetaGetter(appConfig, noRenamePrompts);
+  const files = fs
+    .readdirSync(normalizedSource, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && !shouldSkipFile(entry.name))
+    .map((entry) => entry.name);
+
+  const context: CheckFilesContext = {
+    configKey,
+    startFolder,
+    metaCache: {},
+    configMap,
+    metaGetter,
+    prompts: noRenamePrompts,
+    appConfig,
+  };
+
+  const results = await checkFiles(normalizedSource, [], files, context);
+  metaGetter.writeBack();
+
+  const commands: string[] = [];
+  const folders = new Set<string>();
+  for (const albumKey of Object.keys(results.commands)) {
+    commands.push(...results.commands[albumKey]);
+    for (const folder of results.foldersByAlbum[albumKey] ?? []) {
+      folders.add(folder);
+    }
+  }
+
+  if (!commands.length && folders.size === 0) {
+    throw new Error(
+      "No commands generated — output files may already exist at the new paths"
+    );
+  }
+
+  writeScriptFile(scriptPath, commands, folders);
 };

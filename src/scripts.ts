@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 import type { AppConfig } from "./config.js";
+import type { Metadata } from "./getMeta.js";
+import { getMetaForSource } from "./metaStore.js";
 import { normalizeDir } from "./paths.js";
 
 export interface ScriptInfo {
@@ -12,6 +14,8 @@ export interface ScriptInfo {
   type: string;
   trackCount: number;
   commands: string[];
+  sourcePath: string | null;
+  meta: Metadata | null;
 }
 
 const extractLastQuotedPath = (line: string): string | null => {
@@ -40,7 +44,7 @@ const countTracks = (lines: string[]): number => {
   return lines.filter((line) => line.trim().length > 0).length;
 };
 
-const parseEncoderFromFilename = (
+export const parseEncoderFromFilename = (
   basename: string,
   config: AppConfig
 ): { id: string; label: string } => {
@@ -76,6 +80,29 @@ const encoderOutForId = (encoderId: string, config: AppConfig): string | null =>
   return encoder ? normalizeDir(encoder.out) : null;
 };
 
+const unescapeShellPath = (value: string): string =>
+  value.replace(/\\([`$"\\])/g, "$1");
+
+export const extractSourceDirFromScript = (lines: string[]): string | null => {
+  for (const line of lines) {
+    if (line.trimStart().startsWith("mkdir ")) {
+      continue;
+    }
+
+    const rsyncMatch = line.match(/\brsync\b[^"\n]*"([^"]+)"/);
+    if (rsyncMatch) {
+      return path.dirname(unescapeShellPath(rsyncMatch[1]));
+    }
+
+    const ffmpegMatch = line.match(/\bffmpeg\b[^"\n]*-i\s+"([^"]+)"/);
+    if (ffmpegMatch) {
+      return path.dirname(unescapeShellPath(ffmpegMatch[1]));
+    }
+  }
+
+  return null;
+};
+
 export const describeScript = (
   scriptPath: string,
   config: AppConfig
@@ -88,10 +115,11 @@ export const describeScript = (
   let album = "Unknown album";
   let trackCount = 0;
   let commands: string[] = [];
+  let lines: string[] = [];
 
   try {
     const content = fs.readFileSync(scriptPath, "utf-8");
-    const lines = content.split("\n");
+    lines = content.split("\n");
     trackCount = countTracks(lines);
     commands = lines.map((line) => line.trimEnd()).filter((line) => line.length > 0);
 
@@ -114,6 +142,8 @@ export const describeScript = (
   }
 
   const displayName = `${artist} / ${album} / ${encoder.label} / ${trackCount}`;
+  const sourcePath = extractSourceDirFromScript(lines);
+  const meta = sourcePath ? getMetaForSource(config, sourcePath) : null;
 
   return {
     path: scriptPath,
@@ -124,6 +154,8 @@ export const describeScript = (
     type: encoder.label,
     trackCount,
     commands,
+    sourcePath,
+    meta,
   };
 };
 

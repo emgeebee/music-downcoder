@@ -13,10 +13,12 @@ import {
   executeScript,
   initRuntime,
   listCommandScripts,
+  regenerateScript,
   runDowncoder,
   type RunResult,
 } from "./run.js";
 import { describeScripts } from "./scripts.js";
+import { isValidMetadata, saveMetaEntry } from "./metaStore.js";
 import { getJobProgress } from "./progress.js";
 import { appendJobLog, getJobLogs } from "./jobLog.js";
 
@@ -175,6 +177,56 @@ const server = http.createServer(async (req, res) => {
     const cleared = clearCommandScripts(config);
     lastScripts = [];
     sendJson(res, 200, { cleared });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/meta") {
+    const body = JSON.parse(await readBody(req)) as {
+      sourcePath?: string;
+      scriptPath?: string;
+      fullArtist?: string;
+      fullAlbum?: string;
+      genre?: string;
+      year?: string;
+    };
+
+    if (!body.sourcePath) {
+      sendJson(res, 400, { error: "sourcePath is required" });
+      return;
+    }
+
+    if (!body.scriptPath) {
+      sendJson(res, 400, { error: "scriptPath is required" });
+      return;
+    }
+
+    const meta = {
+      fullArtist: body.fullArtist ?? "",
+      fullAlbum: body.fullAlbum ?? "",
+      genre: body.genre ?? "",
+      year: body.year ?? "",
+    };
+
+    if (!isValidMetadata(meta)) {
+      sendJson(res, 400, { error: "Invalid metadata" });
+      return;
+    }
+
+    try {
+      const metaKey = saveMetaEntry(config, body.sourcePath, meta);
+      await regenerateScript(body.scriptPath, body.sourcePath, config, prompts);
+      appendJobLog(
+        `Updated metadata and regenerated script for ${meta.fullArtist} / ${meta.fullAlbum}`
+      );
+      sendJson(res, 200, {
+        metaKey,
+        meta,
+        scripts: toScriptResponse(listCommandScripts(config)),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      sendJson(res, 500, { error: message });
+    }
     return;
   }
 

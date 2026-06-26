@@ -385,6 +385,56 @@
       #filter-dropdown li:focus {
         background: var(--accent-soft);
       }
+      .script-actions {
+        display: flex;
+        flex-shrink: 0;
+        gap: 0.4rem;
+      }
+      .meta-dialog {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        max-width: 28rem;
+        padding: 1.25rem 1.35rem;
+        width: calc(100% - 2rem);
+      }
+      .meta-dialog::backdrop {
+        background: #0006;
+      }
+      .meta-dialog h3 {
+        margin: 0 0 0.35rem;
+      }
+      .meta-source-path {
+        color: var(--text-muted);
+        font-size: 0.82rem;
+        margin: 0 0 1rem;
+        word-break: break-all;
+      }
+      .meta-field {
+        margin-bottom: 0.75rem;
+      }
+      .meta-field label {
+        color: var(--text-muted);
+        display: block;
+        font-size: 0.78rem;
+        font-weight: 650;
+        letter-spacing: 0.04em;
+        margin-bottom: 0.35rem;
+        text-transform: uppercase;
+      }
+      .meta-field input {
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        box-sizing: border-box;
+        padding: 0.55rem 0.7rem;
+        width: 100%;
+      }
+      .meta-field input:focus {
+        border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+        box-shadow: 0 0 0 3px var(--accent-soft);
+        outline: none;
+      }
     </style>
   </head>
   <body>
@@ -444,6 +494,33 @@
       </aside>
     </div>
 
+    <dialog id="meta-dialog" class="meta-dialog">
+      <form id="meta-form">
+        <h3>Edit metadata</h3>
+        <p class="meta-source-path" id="meta-source-path"></p>
+        <div class="meta-field">
+          <label for="meta-artist">Artist</label>
+          <input id="meta-artist" type="text" required />
+        </div>
+        <div class="meta-field">
+          <label for="meta-album">Album</label>
+          <input id="meta-album" type="text" required />
+        </div>
+        <div class="meta-field">
+          <label for="meta-genre">Genre</label>
+          <input id="meta-genre" type="text" />
+        </div>
+        <div class="meta-field">
+          <label for="meta-year">Year</label>
+          <input id="meta-year" type="text" inputmode="numeric" />
+        </div>
+        <div class="btn-row">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" class="btn-secondary" id="meta-cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
     <script>
       const logEl = document.getElementById("log");
       const scriptsSection = document.getElementById("scripts-section");
@@ -452,6 +529,10 @@
       const encodersEl = document.getElementById("encoders");
       const filterInput = document.getElementById("filter");
       const filterDropdown = document.getElementById("filter-dropdown");
+      const metaDialog = document.getElementById("meta-dialog");
+      const metaForm = document.getElementById("meta-form");
+      let editingSourcePath = null;
+      let editingScriptPath = null;
 
       const FILTER_HISTORY_KEY = "music_downcoder_filter_history";
       const MAX_FILTER_HISTORY = 15;
@@ -562,6 +643,69 @@
         }
       };
 
+      const openMetaEditor = (script) => {
+        if (!script.sourcePath) {
+          return;
+        }
+        editingSourcePath = script.sourcePath;
+        editingScriptPath = script.path;
+        document.getElementById("meta-source-path").textContent = script.sourcePath;
+        document.getElementById("meta-artist").value =
+          script.meta?.fullArtist ?? script.artist ?? "";
+        document.getElementById("meta-album").value =
+          script.meta?.fullAlbum ?? script.album ?? "";
+        document.getElementById("meta-genre").value = script.meta?.genre ?? "";
+        document.getElementById("meta-year").value = script.meta?.year ?? "";
+        metaDialog.showModal();
+      };
+
+      metaForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!editingSourcePath || !editingScriptPath) {
+          return;
+        }
+
+        const payload = {
+          sourcePath: editingSourcePath,
+          scriptPath: editingScriptPath,
+          fullArtist: document.getElementById("meta-artist").value,
+          fullAlbum: document.getElementById("meta-album").value,
+          genre: document.getElementById("meta-genre").value,
+          year: document.getElementById("meta-year").value,
+        };
+
+        setBusy(true);
+        try {
+          const res = await fetch("/api/meta", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (data.error) {
+            appendLog(`Error: ${data.error}`);
+          } else {
+            appendLog(
+              `Updated metadata and regenerated script for ${payload.fullArtist} / ${payload.fullAlbum}`
+            );
+            metaDialog.close();
+            editingSourcePath = null;
+            editingScriptPath = null;
+            if (data.scripts) {
+              renderScripts(data.scripts);
+            }
+          }
+        } finally {
+          setBusy(false);
+        }
+      });
+
+      document.getElementById("meta-cancel").addEventListener("click", () => {
+        metaDialog.close();
+        editingSourcePath = null;
+        editingScriptPath = null;
+      });
+
       const renderScripts = (scripts) => {
         scriptsList.innerHTML = "";
         if (!scripts.length) {
@@ -582,6 +726,22 @@
           title.className = "script-title";
           title.textContent = script.displayName;
           title.title = script.name;
+
+          const actions = document.createElement("div");
+          actions.className = "script-actions";
+
+          if (script.sourcePath) {
+            const editBtn = document.createElement("button");
+            editBtn.type = "button";
+            editBtn.className = "btn-secondary btn-sm";
+            editBtn.textContent = "Edit";
+            editBtn.addEventListener("click", (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              openMetaEditor(script);
+            });
+            actions.append(editBtn);
+          }
 
           const btn = document.createElement("button");
           btn.type = "button";
@@ -610,7 +770,8 @@
             setBusy(false);
           });
 
-          summary.append(title, btn);
+          actions.append(btn);
+          summary.append(title, actions);
           item.append(summary);
 
           if (script.commands?.length) {

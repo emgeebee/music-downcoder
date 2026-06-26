@@ -9,13 +9,10 @@ import { normalizeDir } from "./paths.js";
 interface SyncMetaResult {
   updated: number;
   unchanged: number;
-  missingLocal: number;
-  added: number;
+  missingFolder: number;
+  failed: number;
   total: number;
 }
-
-const shouldSkipDir = (name: string): boolean =>
-  name.startsWith("@") || name === "#recycle";
 
 const isValidMetadata = (value: unknown): value is Metadata => {
   if (!value || typeof value !== "object") {
@@ -43,34 +40,6 @@ const readLocalMeta = (dirPath: string): Metadata | null => {
   return null;
 };
 
-const walkLocalMeta = (
-  start: string,
-  found: Map<string, Metadata> = new Map()
-): Map<string, Metadata> => {
-  const dirPath = normalizeDir(start);
-  let entries: fs.Dirent[];
-
-  try {
-    entries = fs.readdirSync(dirPath, { withFileTypes: true });
-  } catch {
-    return found;
-  }
-
-  const localMeta = readLocalMeta(dirPath);
-  if (localMeta) {
-    found.set(dirPath, localMeta);
-  }
-
-  for (const entry of entries) {
-    if (!entry.isDirectory() || shouldSkipDir(entry.name)) {
-      continue;
-    }
-    walkLocalMeta(path.join(dirPath, entry.name), found);
-  }
-
-  return found;
-};
-
 const loadCentralMeta = (metaFile: string): Record<string, Metadata> => {
   try {
     const parsed: unknown = JSON.parse(fs.readFileSync(metaFile, "utf-8"));
@@ -83,54 +52,52 @@ const loadCentralMeta = (metaFile: string): Record<string, Metadata> => {
   }
 };
 
-export const syncMetaFromLocal = (configPath?: string): SyncMetaResult => {
+const formatError = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+export const syncMetaToLocal = (configPath?: string): SyncMetaResult => {
   loadConfig(configPath ? path.resolve(configPath) : undefined);
   const config = getConfig();
 
   const central = loadCentralMeta(config.metaFile);
-  const localByPath = new Map<string, Metadata>();
-
-  for (const folder of config.startFolders) {
-    walkLocalMeta(folder.path, localByPath);
-  }
 
   let updated = 0;
   let unchanged = 0;
-  let missingLocal = 0;
+  let missingFolder = 0;
+  let failed = 0;
 
-  for (const dirPath of Object.keys(central)) {
-    const localMeta =
-      readLocalMeta(dirPath) ?? localByPath.get(normalizeDir(dirPath));
-    if (!localMeta) {
-      missingLocal++;
+  for (const [dirPath, meta] of Object.entries(central)) {
+    if (!isValidMetadata(meta)) {
       continue;
     }
 
-    if (JSON.stringify(central[dirPath]) === JSON.stringify(localMeta)) {
+    const albumDir = normalizeDir(dirPath);
+    if (!fs.existsSync(albumDir)) {
+      missingFolder++;
+      continue;
+    }
+
+    const localMeta = readLocalMeta(albumDir);
+    if (localMeta && JSON.stringify(localMeta) === JSON.stringify(meta)) {
       unchanged++;
       continue;
     }
 
-    central[dirPath] = localMeta;
-    updated++;
-  }
-
-  let added = 0;
-  for (const [dirPath, localMeta] of localByPath) {
-    if (central[dirPath]) {
-      continue;
+    const backupFile = path.join(albumDir, "meta.json");
+    try {
+      fs.writeFileSync(backupFile, JSON.stringify(meta));
+      updated++;
+    } catch (error) {
+      console.warn(`Could not write ${backupFile}: ${formatError(error)}`);
+      failed++;
     }
-    central[dirPath] = localMeta;
-    added++;
   }
-
-  fs.writeFileSync(config.metaFile, JSON.stringify(central, undefined, 2));
 
   return {
     updated,
     unchanged,
-    missingLocal,
-    added,
+    missingFolder,
+    failed,
     total: Object.keys(central).length,
   };
 };
@@ -139,11 +106,11 @@ const configArgIndex = process.argv.indexOf("-c");
 const configPath =
   configArgIndex >= 0 ? process.argv[configArgIndex + 1] : undefined;
 
-const result = syncMetaFromLocal(configPath);
+const result = syncMetaToLocal(configPath);
 
-console.log(`Synced ${getConfig().metaFile} from local album meta.json files.`);
+console.log(`Synced ${getConfig().metaFile} to local album meta.json files.`);
 console.log(`  updated: ${result.updated}`);
 console.log(`  unchanged: ${result.unchanged}`);
-console.log(`  no local meta: ${result.missingLocal}`);
-console.log(`  added: ${result.added}`);
+console.log(`  missing folder: ${result.missingFolder}`);
+console.log(`  failed: ${result.failed}`);
 console.log(`  total entries: ${result.total}`);
