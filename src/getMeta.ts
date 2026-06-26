@@ -81,15 +81,26 @@ export class MetaGetter {
       const { fullArtist, fullAlbum } = this.metaData[dirPath];
       console.log("read meta for %s: %s", fullArtist, fullAlbum);
     } else {
+      let loadedFromBackup = false;
       try {
         const backupMeta = fs.readFileSync(backupFile, "utf-8");
-        if (backupMeta && JSON.parse(backupMeta).year !== undefined) {
-          const { fullAlbum, fullArtist, genre, year } = JSON.parse(backupMeta);
+        const parsed: unknown = JSON.parse(backupMeta);
+        if (
+          backupMeta &&
+          parsed &&
+          typeof parsed === "object" &&
+          (parsed as Metadata).year !== undefined
+        ) {
+          const { fullAlbum, fullArtist, genre, year } = parsed as Metadata;
           console.log("read backup meta for %s: %s", fullArtist, fullAlbum);
           this.metaData[dirPath] = { fullAlbum, fullArtist, genre, year };
+          loadedFromBackup = true;
         }
-        throw new Error("no complete backup file");
       } catch {
+        // missing or unreadable album meta.json
+      }
+
+      if (!loadedFromBackup) {
         console.log(` no backup file at ${backupFile}, falling back to ffmpeg`);
         const inputPath = shellPath(dirPath, filename);
         const meta = await readFfmpegMetadata(this.config.ffmpeg, inputPath);
