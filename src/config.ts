@@ -17,6 +17,8 @@ export interface EncoderConfig {
   default?: boolean;
   out: string;
   format: string;
+  /** When format is cp, transcode .wav to this format instead of copying. Default: alac */
+  wavFormat?: "alac" | "flac";
   getImages?: boolean;
 }
 
@@ -40,6 +42,7 @@ export interface ConfigMap {
     start: string;
     out: string;
     format: string;
+    wavFormat?: "alac" | "flac";
     getImages?: boolean;
   };
 }
@@ -103,6 +106,7 @@ export const buildConfigMap = (
       start: normalizeDir(startFolder),
       out: normalizeDir(encoder.out),
       format: encoder.format,
+      wavFormat: encoder.wavFormat,
       getImages: encoder.getImages,
     };
   }

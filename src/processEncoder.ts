@@ -20,6 +20,7 @@ interface OutputPathResult {
   path: string;
   shouldProcess: boolean;
   isCopy: boolean;
+  transcodeFormat?: "alac" | "flac";
 }
 
 interface CheckFilesContext {
@@ -162,19 +163,35 @@ const getOutputPath = (
   const outputFormat = encoderConfig.format;
   const outputFormatExtension = "." + outputFormat;
   const outputFormatExtensionRegex = new RegExp("." + outputFormat);
+  const isWav = /\.wav$/i.test(file);
+
+  const isAudioFile = new RegExp(".m4a|flac|wav|mp3").test(file);
+  if (!isAudioFile) {
+    return { path: file, shouldProcess: false, isCopy: false };
+  }
+
+  if (outputFormat === "cp" && isWav) {
+    const wavFormat = encoderConfig.wavFormat ?? "alac";
+    const ext = wavFormat === "flac" ? ".flac" : ".m4a";
+    const resultPath =
+      path.extname(file).length > 0
+        ? path.basename(file, path.extname(file)) + ext
+        : file + ext;
+    return {
+      path: resultPath,
+      shouldProcess: true,
+      isCopy: false,
+      transcodeFormat: wavFormat,
+    };
+  }
 
   const isCopy =
     outputFormat === "cp" ||
     outputFormatExtensionRegex.test(file) ||
     new RegExp("mp3").test(file);
 
-  const isAudioFile = new RegExp(".m4a|flac|wav|mp3").test(file);
-  if (!isAudioFile) {
-    return { path: file, shouldProcess: false, isCopy };
-  }
-
   if (isCopy) {
-    return { path: file, shouldProcess: true, isCopy };
+    return { path: file, shouldProcess: true, isCopy: true };
   }
 
   const resultPath =
@@ -184,7 +201,7 @@ const getOutputPath = (
 
   const shouldProcess = new RegExp(outputFormatExtension).test(resultPath);
 
-  return { path: resultPath, shouldProcess, isCopy };
+  return { path: resultPath, shouldProcess, isCopy: false };
 };
 
 const buildEncodingCommands = (
@@ -223,6 +240,40 @@ const buildEncodingCommands = (
   return cmd;
 };
 
+const buildWavTranscodeCommands = (
+  filepath: string,
+  output: string,
+  format: "alac" | "flac",
+  appConfig: AppConfig
+): string[] => {
+  const metaFile = path.join(
+    path.dirname(output),
+    path.basename(output, path.extname(output)) + ".txt"
+  );
+  const ffmpeg = appConfig.ffmpeg;
+
+  const cmd: string[] = [];
+  cmd.push(`${ffmpeg} -i "${filepath}" -f ffmetadata "${metaFile}"`);
+  cmd.push('sed -i".bak" "/^major_brand/d" "' + metaFile + '"');
+  cmd.push('sed -i".bak" "/^minor_version/d" "' + metaFile + '"');
+  cmd.push('sed -i".bak" "/^compatible_brands/d" "' + metaFile + '"');
+  cmd.push('sed -i".bak" "/^gapless_playback/d" "' + metaFile + '"');
+  cmd.push('sed -i".bak" "/^encoder/d" "' + metaFile + '"');
+
+  if (format === "alac") {
+    cmd.push(
+      `${ffmpeg} -i "${filepath}" -i "${metaFile}" -map_metadata 1 -c:a alac -f ipod "${output}"`
+    );
+  } else {
+    cmd.push(
+      `${ffmpeg} -i "${filepath}" -i "${metaFile}" -map_metadata 1 -c:a flac "${output}"`
+    );
+  }
+  cmd.push('rm "' + metaFile + '"');
+  cmd.push('rm "' + metaFile + '.bak"');
+  return cmd;
+};
+
 const buildCopyCommands = (filepath: string, output: string): string[] => {
   const filename = path.basename(output);
   return [`echo "Copying ${filename}" && rsync -ah "${filepath}" "${output}"`];
@@ -234,8 +285,12 @@ const buildCommand = (
   isCopy: boolean,
   configKey: ConfigKey,
   configMap: ConfigMap,
-  appConfig: AppConfig
+  appConfig: AppConfig,
+  transcodeFormat?: "alac" | "flac"
 ): string[] => {
+  if (transcodeFormat) {
+    return buildWavTranscodeCommands(filepath, output, transcodeFormat, appConfig);
+  }
   return isCopy
     ? buildCopyCommands(filepath, output)
     : buildEncodingCommands(filepath, output, configKey, configMap, appConfig);
@@ -276,6 +331,7 @@ const checkFiles = async (
       shouldProcess,
       path: outputPath,
       isCopy,
+      transcodeFormat,
     } = getOutputPath(file, configKey, configMap);
 
     if (!shouldProcess) {
@@ -359,7 +415,8 @@ const checkFiles = async (
         isCopy,
         configKey,
         configMap,
-        appConfig
+        appConfig,
+        transcodeFormat
       );
       if (!results.commands[album]) {
         results.commands[album] = [];

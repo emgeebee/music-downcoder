@@ -35,7 +35,9 @@ const countTracks = (lines: string[]): number => {
   }
 
   const encodeCount = lines.filter((line) =>
-    /-f (mp3|ogg)  "/.test(line)
+    /-f (mp3|ogg)  "/.test(line) ||
+    /-c:a alac/.test(line) ||
+    /-c:a flac/.test(line)
   ).length;
   if (encodeCount > 0) {
     return encodeCount;
